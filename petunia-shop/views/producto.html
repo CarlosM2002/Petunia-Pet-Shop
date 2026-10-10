@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Producto de Petunia Pet Shop." />
+    <title>Producto | Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="product">
+<!--@header-->
+    <main>
+      <div class="container" id="product-root">
+        <nav class="breadcrumbs" aria-label="Ruta de navegación" id="product-crumbs"></nav>
+        <div class="detail" id="product-detail"></div>
+        <section class="reviews-section" id="opiniones" aria-labelledby="reviews-title"></section>
+        <section class="related" aria-labelledby="related-title" id="related" hidden>
+          <div class="section-head"><h2 class="section-title" id="related-title">También te puede interesar</h2></div>
+          <div class="product-grid" id="related-grid"></div>
+        </section>
+      </div>
+    </main>
+<!--@footer-->
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Petunia Pet Shop: accesorios especiales para tus mascotas." />
+    <title>Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="home">
+<!--@header-->
+    <main>
+      <section class="hero" id="hero" aria-label="Nueva colección navideña"></section>
+      <div class="perks" id="perks"></div>
+
+      <section class="section" id="mas-vendidos" aria-labelledby="best-title">
+        <div class="container">
+          <div class="section-head">
+            <h1 class="section-title" id="best-title">Más vendidos</h1>
+            <a class="link-all" href="perros.html">Ver todo</a>
+          </div>
+          <div class="product-grid" id="best-grid"></div>
+        </div>
+      </section>
+
+      <section class="section section-dark" aria-labelledby="hall-title">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="section-title" id="hall-title">Colección Halloween</h2>
+            <a class="link-all" href="perros.html?coleccion=halloween">Explorar</a>
+          </div>
+          <div class="collection-grid" id="tiles"></div>
+        </div>
+      </section>
+
+      <section class="section section-tint" aria-labelledby="latest-title">
+        <div class="container">
+          <div class="section-head">
+            <h2 class="section-title" id="latest-title">Últimos modelos</h2>
+            <div class="carousel-controls">
+              <button class="round-btn" type="button" data-scroll="-1" aria-label="Anterior">&#8592;</button>
+              <button class="round-btn" type="button" data-scroll="1" aria-label="Siguiente">&#8594;</button>
+            </div>
+          </div>
+          <div class="latest-track" id="latest"></div>
+        </div>
+      </section>
+
+      <section class="about" id="about" aria-label="Conócenos"></section>
+
+      <section class="section" aria-labelledby="social-title">
+        <div class="container">
+          <div class="section-head"><h2 class="section-title" id="social-title">Síguenos en @petuniasPetShop</h2></div>
+          <div class="social-mosaic" id="social"></div>
+        </div>
+      </section>
+    </main>
+<!--@footer-->
+    <script src="app.js"></script>
+  </body>
+</html>

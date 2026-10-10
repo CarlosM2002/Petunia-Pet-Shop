@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Busca accesorios para tu mascota en Petunia Pet Shop." />
+    <title>Buscar | Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="search">
+<!--@header-->
+    <main class="search-page">
+      <section class="search-panel" aria-labelledby="search-title">
+        <h1 id="search-title">¿Qué estás buscando para tu peludo?</h1>
+        <form class="search-field" role="search" id="search-form">
+          <img src="media/search-input-icon.svg" alt="" />
+          <input type="search" id="search-input" name="q" aria-label="Buscar" placeholder="Buscar collares, pañoletas, moños…" autocomplete="off" autofocus />
+          <button class="btn" type="submit">Buscar</button>
+        </form>
+        <div class="suggest" id="suggest">
+          <p>Búsquedas populares</p>
+          <div class="suggest-chips" id="popular"></div>
+        </div>
+      </section>
+      <section class="search-results" id="search-results" hidden>
+        <div class="container">
+          <p class="result-count" id="search-count"></p>
+          <div class="product-grid" id="search-grid"></div>
+        </div>
+      </section>
+    </main>
+<!--@footer-->
+    <script src="app.js"></script>
+  </body>
+</html>

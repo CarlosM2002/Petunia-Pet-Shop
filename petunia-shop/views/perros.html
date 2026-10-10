@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Compra accesorios y productos para perros en Petunia Pet Shop." />
+    <title>Perros | Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="catalog" data-category="perros">
+<!--@header-->
+    <main class="shop-page">
+      <div class="container">
+        <nav class="breadcrumbs" aria-label="Ruta de navegación">
+          <a href="index.html">Home</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Perros</span>
+        </nav>
+        <section class="page-hero" id="cat-hero" aria-label="Colección" hidden></section>
+        <div class="shop-layout">
+          <aside class="filters" aria-labelledby="filters-title">
+            <h1 id="filters-title">Filtros</h1>
+            <div id="filter-list"></div>
+          </aside>
+          <section aria-label="Productos" aria-live="polite">
+            <p class="result-count" id="result-count"></p>
+            <div class="product-grid cols-2" id="catalog-grid"></div>
+            <div class="load-more" id="load-more" hidden><button class="btn btn-light" type="button">Cargar más</button></div>
+          </section>
+        </div>
+      </div>
+    </main>
+<!--@footer-->
+    <script src="app.js"></script>
+  </body>
+</html>
