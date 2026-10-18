@@ -1397,3 +1397,38 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   .checkout-table td:nth-child(3) .qty { margin-left: 0; }
 }
 @media (max-width: 560px) { .cart-item { grid-template-columns: 64px 1fr; } .cart-side { grid-column: 2; grid-auto-flow: column; justify-content: space-between; align-items: center; } .cart-item img { width: 64px; height: 80px; } }
+
+/* ---------- Personalizador de placa ---------- */
+.buy .btn.btn-custom { background: #fff; color: var(--ink); box-shadow: 4px 4px 0 var(--purple); }
+.buy .btn.btn-custom:hover { background: var(--lilac); color: var(--ink); box-shadow: 7px 7px 0 var(--ink); }
+
+.plate-dialog {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; overflow: auto;
+  border: var(--line); border-radius: 28px; background: #fff; color: var(--ink); box-shadow: 10px 10px 0 var(--sun);
+}
+.plate-dialog::backdrop { background: rgba(31, 18, 51, 0.6); }
+.plate-dialog[open] { display: grid; gap: 16px; }
+.plate-dialog h2 { font-family: var(--display); font-size: 30px; font-weight: 600; line-height: 1.1; padding-right: 40px; }
+.plate-lead { color: var(--muted); }
+.plate-close {
+  position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border: var(--line); border-radius: 50%;
+  background: #fff; font-size: 24px; line-height: 1; transition: background 0.2s, transform 0.25s var(--ease);
+}
+.plate-close:hover { background: var(--lilac); transform: rotate(90deg); }
+.plate-stage { display: grid; place-items: center; padding: 12px; border: var(--line); border-radius: 22px; background: #d9b2d4; }
+.plate-svg { width: min(100%, 400px); height: auto; overflow: visible; }
+.pl-hello { fill: #fff; font-family: var(--display); font-size: 50px; font-weight: 600; }
+.pl-sub { fill: #fff; fill-opacity: .9; font-family: var(--display); font-size: 12px; letter-spacing: 1.5px; }
+.pl-name { fill: #fff; font-family: "Playpen Sans", "Fredoka", "Comic Sans MS", Arial, sans-serif; font-weight: 500; font-size: 56px; stroke: #fff; stroke-width: .5px; paint-order: stroke; transition: opacity .2s; }
+.plate-field { display: grid; gap: 8px; }
+.plate-field label, .plate-label { font-family: var(--display); font-size: 18px; font-weight: 600; }
+.plate-field input {
+  height: 52px; padding: 0 20px; border: var(--line); border-radius: 999px; background: #fff;
+  font: 600 18px var(--body); color: var(--ink); transition: box-shadow 0.2s, background 0.2s;
+}
+.plate-field input:focus-visible { outline: none; background: var(--tint); box-shadow: 4px 4px 0 var(--purple); }
+.plate-field small { justify-self: end; margin-top: -4px; color: var(--muted); font-weight: 600; }
+.plate-note { font-size: 13px; color: var(--muted); }
+.plate-dialog .btn { width: 100%; min-height: 54px; font-size: 19px; background: var(--grape); color: #fff; box-shadow: 4px 4px 0 var(--sun); }
+.plate-dialog .btn:hover { background: var(--sun); color: var(--ink); box-shadow: 7px 7px 0 var(--ink); }
+@media (max-width: 520px) { .plate-dialog { padding: 20px; } .plate-dialog h2 { font-size: 25px; } }

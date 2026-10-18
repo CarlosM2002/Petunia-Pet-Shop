@@ -213,6 +213,7 @@
         <strong class="big-price">${money(p.price)}</strong>
         <p class="lead">${esc(p.subtitle ? cap(p.subtitle) + '.' : '')}</p>
         ${colors}${sizes}
+        ${p.slug === 'placas-con-nombre' && p.colors.length ? '<button class="btn btn-custom" type="button" id="custom-btn" aria-haspopup="dialog">✎ Personalizar placa</button>' : ''}
         <button class="btn" type="button" id="add-btn" ${p.stock < 1 ? 'disabled' : ''}>${p.stock < 1 ? 'Agotado' : `Agregar a la bolsa · ${money(p.price)}`}</button>
         <div class="reviews">${stars}</div>
         <div class="desc"><h2>Descripción del producto</h2>${desc}</div>
@@ -234,17 +235,114 @@
       main.style.setProperty('--zy', ((e.clientY - b.top) / b.height) * 100 + '%');
     });
     let colorId = p.colors[0]?.id || null;
-    $$('.color-swatches button').forEach((b) => b.addEventListener('click', () => {
-      $$('.color-swatches button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
-      b.setAttribute('aria-pressed', 'true');
-      colorId = Number(b.dataset.color);
-    }));
+    const setColor = (id) => {
+      colorId = id;
+      $$('#product-detail .color-swatches button').forEach((x) => x.setAttribute('aria-pressed', String(Number(x.dataset.color) === id)));
+    };
+    $$('#product-detail .color-swatches button').forEach((b) => b.addEventListener('click', () => setColor(Number(b.dataset.color))));
+    if ($('#custom-btn')) $('#custom-btn').addEventListener('click', () => openPlateCustomizer(p.colors, colorId, setColor));
     $('#add-btn').addEventListener('click', () => addToCart(p.id, p.name, { colorId, sizeId: Number($('#product-size')?.value) || null }));
 
     // Opiniones
     renderReviews(p);
 
     if (p.related.length) { $('#related').hidden = false; $('#related-grid').innerHTML = p.related.map(cardHTML).join(''); }
+  }
+
+  /* Personalizador de placa con nombre: vista previa en vivo (SVG) */
+  const mix = (hex, to, t) => {
+    const n = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const a = n(hex), b = n(to);
+    return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  };
+  const plateSVG = (hex) => `
+    <svg class="plate-svg" viewBox="0 0 400 330" role="img" aria-label="Vista previa de la placa">
+      <defs>
+        <linearGradient id="pl-glass" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".55" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".26"/>
+        </linearGradient>
+        <linearGradient id="pl-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f4f5f7"/><stop offset=".5" stop-color="#9aa0a8"/><stop offset="1" stop-color="#d9dce1"/>
+        </linearGradient>
+        <filter id="pl-emboss" x="-10%" y="-30%" width="120%" height="170%">
+          <feDropShadow dx="0" dy="2" stdDeviation="1.3" flood-color="#4a1d6b" flood-opacity=".45"/>
+        </filter>
+        <filter id="pl-soft" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#2d0f55" flood-opacity=".28"/></filter>
+      </defs>
+      <ellipse cx="200" cy="52" rx="23" ry="27" fill="none" stroke="url(#pl-ring)" stroke-width="6"/>
+      <ellipse cx="200" cy="52" rx="23" ry="27" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.5" transform="translate(-1.5 -1.5)"/>
+      <g filter="url(#pl-soft)">
+        <rect x="42" y="86" width="316" height="210" rx="22" fill="none" stroke="${hex}" stroke-opacity=".6" stroke-width="5"/>
+        <rect x="42" y="78" width="316" height="210" rx="22" fill="none" stroke="${hex}" stroke-opacity=".3" stroke-width="5"/>
+        <rect x="40" y="70" width="320" height="214" rx="22" fill="url(#pl-glass)" stroke="#fff" stroke-opacity=".9" stroke-width="2.5"/>
+      </g>
+      <rect x="176" y="60" width="48" height="22" rx="10" fill="#fff" fill-opacity=".45"/>
+      <rect x="58" y="88" width="284" height="78" rx="12" fill="${hex}"/>
+      <rect x="58" y="88" width="284" height="30" rx="12" fill="#fff" fill-opacity=".14"/>
+      <text x="200" y="136" text-anchor="middle" class="pl-hello">Hello</text>
+      <text x="200" y="156" text-anchor="middle" class="pl-sub">my name is</text>
+      <rect x="58" y="246" width="284" height="20" rx="10" fill="${hex}"/>
+      <rect x="58" y="246" width="284" height="7" rx="3.5" fill="#fff" fill-opacity=".2"/>
+      <text id="pl-name" x="200" y="218" text-anchor="middle" class="pl-name" filter="url(#pl-emboss)"></text>
+      <path d="M60 96 L130 96 L84 262 L60 262 Z" fill="#fff" fill-opacity=".14"/>
+    </svg>`;
+
+  function openPlateCustomizer(colors, currentId, onApply) {
+    let dlg = $('#plate-dialog');
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'plate-dialog';
+      dlg.className = 'plate-dialog';
+      dlg.setAttribute('aria-labelledby', 'plate-title');
+      dlg.innerHTML = `
+        <button type="button" class="plate-close" data-close aria-label="Cerrar">×</button>
+        <h2 id="plate-title">Personaliza tu placa</h2>
+        <p class="plate-lead">Escribe el nombre de tu mascota y elige el color para ver cómo quedaría.</p>
+        <div class="plate-stage" id="plate-stage"></div>
+        <div class="plate-field">
+          <label for="plate-name-input">Nombre de tu mascota</label>
+          <input id="plate-name-input" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Ej. Petunia" />
+          <small id="plate-count" aria-live="polite">0/12</small>
+        </div>
+        <div class="plate-field">
+          <span class="plate-label">Color: <b id="plate-color-name"></b></span>
+          <div class="color-swatches" id="plate-swatches"></div>
+        </div>
+        <p class="plate-note">Vista previa ilustrativa: el acabado final de la placa puede variar ligeramente.</p>
+        <button type="button" class="btn" id="plate-apply">Usar este color</button>`;
+      document.body.appendChild(dlg);
+    }
+    let selected = colors.find((c) => c.id === currentId) || colors[0];
+    const stage = $('#plate-stage', dlg), input = $('#plate-name-input', dlg);
+    const sw = $('#plate-swatches', dlg);
+    sw.innerHTML = colors.map((c) => `<button type="button" data-color="${c.id}" aria-label="Color ${esc(c.name)}" title="${esc(c.name)}" style="--swatch-color:${esc(c.hex)}"></button>`).join('');
+
+    const drawName = () => {
+      const t = $('#pl-name', dlg); if (!t) return;
+      const val = input.value.trim();
+      t.textContent = val || 'Petunia';
+      t.style.opacity = val ? 1 : 0.45;
+      let size = 56; t.style.fontSize = size + 'px';
+      const max = 250;
+      const w = t.getComputedTextLength();
+      if (w > max) { size = Math.max(26, Math.floor(size * max / w)); t.style.fontSize = size + 'px'; }
+      $('#plate-count', dlg).textContent = `${[...input.value].length}/12`;
+    };
+    const drawColor = () => {
+      stage.innerHTML = plateSVG(selected.hex);
+      $('#plate-color-name', dlg).textContent = selected.name;
+      $$('button', sw).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.color) === selected.id)));
+      drawName();
+    };
+    sw.onclick = (e) => { const b = e.target.closest('button[data-color]'); if (!b) return; selected = colors.find((c) => c.id === Number(b.dataset.color)); drawColor(); };
+    input.oninput = () => { input.value = input.value.replace(/[^\p{L}\p{N} '.\-]/gu, ''); drawName(); };
+    dlg.onclick = (e) => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.close(); };
+    $('#plate-apply', dlg).onclick = () => { onApply(selected.id); dlg.close(); toast(`Color ${selected.name.toLowerCase()} seleccionado`); };
+
+    drawColor();
+    dlg.showModal();
+    input.focus();
+    drawName();
   }
 
   async function renderReviews(p) {
