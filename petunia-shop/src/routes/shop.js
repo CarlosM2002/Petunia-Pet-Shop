@@ -25,6 +25,17 @@ router.post('/favorites/:productId/toggle', (req, res) => {
   res.json({ favorite: !existing, count });
 });
 
+/* Impuesto 8,8 % y envío fijo de $15, calculados en centavos para no arrastrar decimales. */
+const TAX_RATE = 0.088;
+const SHIPPING_CENTS = 1500;
+
+function quoteCart(rows) {
+  const subtotalCents = rows.reduce((n, r) => n + r.priceCents * r.qty, 0);
+  const taxCents = Math.round(subtotalCents * TAX_RATE);
+  const shippingCents = rows.length ? SHIPPING_CENTS : 0;
+  return { subtotalCents, taxCents, shippingCents, totalCents: subtotalCents + taxCents + shippingCents };
+}
+
 /* ───────── Bolsa ───────── */
 function cartPayload(owner) {
   const rows = db.prepare(`
@@ -39,7 +50,16 @@ function cartPayload(owner) {
     color: r.colorName ? { name: r.colorName, hex: r.colorHex } : null, size: r.sizeLabel,
     qty: r.qty, stock: r.stock, unitPrice: r.priceCents / 100, lineTotal: (r.priceCents * r.qty) / 100,
   }));
-  return { items, count: items.reduce((n, i) => n + i.qty, 0), subtotal: items.reduce((n, i) => n + i.lineTotal, 0) };
+  const quote = quoteCart(rows);
+  return {
+    items,
+    count: items.reduce((n, i) => n + i.qty, 0),
+    subtotal: quote.subtotalCents / 100,
+    tax: quote.taxCents / 100,
+    shipping: quote.shippingCents / 100,
+    total: quote.totalCents / 100,
+    totalCents: quote.totalCents,
+  };
 }
 
 router.get('/cart', (req, res) => res.json(cartPayload(req.owner)));
@@ -101,7 +121,7 @@ router.post('/orders', orderLimiter, (req, res) => {
       const code = 'PET-' + crypto.randomBytes(4).toString('hex').toUpperCase();
       const orderId = db.prepare(`INSERT INTO orders (code,user_id,customer_name,email,phone,address,notes,subtotal_cents)
         VALUES (?,?,?,?,?,?,?,?)`).run(code, req.user?.id ?? null, name, email, phone, address, notes,
-        cart.items.reduce((n, i) => n + Math.round(i.unitPrice * 100) * i.qty, 0)).lastInsertRowid;
+        cart.totalCents).lastInsertRowid;
       for (const i of cart.items) {
         const upd = db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?').run(i.qty, i.productId, i.qty);
         if (!upd.changes) throw Object.assign(new Error(`${i.name} ya no tiene suficiente stock.`), { status: 409 });
@@ -109,7 +129,7 @@ router.post('/orders', orderLimiter, (req, res) => {
           .run(orderId, i.productId, i.name, i.color?.name ?? null, i.size, Math.round(i.unitPrice * 100), i.qty);
       }
       db.prepare(`DELETE FROM cart_items WHERE ${req.owner.col} = ?`).run(req.owner.val);
-      return { code, total: cart.subtotal };
+      return { code, total: cart.total, subtotal: cart.subtotal, tax: cart.tax, shipping: cart.shipping };
     })();
     res.status(201).json(order);
   } catch (e) {

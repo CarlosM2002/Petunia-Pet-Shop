@@ -399,20 +399,6 @@
       <button class="btn" type="button" id="go-checkout">Finalizar compra</button></div>`;
   }
 
-  function renderCheckout() {
-    titleEl.textContent = 'Finalizar compra';
-    const u = state.user || {};
-    body.innerHTML = `<form class="stack" id="checkout-form">
-      <label class="field">Nombre<input name="name" required maxlength="100" value="${esc(u.name || '')}" autocomplete="name" /></label>
-      <label class="field">Correo electrónico<input name="email" type="email" required value="${esc(u.email || '')}" autocomplete="email" /></label>
-      <label class="field">Teléfono<input name="phone" type="tel" maxlength="40" autocomplete="tel" /></label>
-      <label class="field">Dirección de entrega<textarea name="address" rows="3" required maxlength="300" autocomplete="street-address"></textarea></label>
-      <label class="field">Notas (opcional)<textarea name="notes" rows="2" maxlength="500"></textarea></label>
-      <p class="form-error" role="alert" hidden></p>
-      <button class="btn" type="submit">Confirmar pedido · ${money(state.cart.subtotal)}</button>
-      <button class="link-btn" type="button" id="back-cart">Volver a la bolsa</button></form>`;
-  }
-
   body.addEventListener('click', async (e) => {
     const item = e.target.closest('[data-item]');
     try {
@@ -422,7 +408,7 @@
         renderCounts(); renderCart();
       } else if (e.target.closest('[data-remove]') && item) {
         state.cart = await api(`/cart/${item.dataset.item}`, { method: 'DELETE' }); renderCounts(); renderCart();
-      } else if (e.target.id === 'go-checkout') renderCheckout();
+      } else if (e.target.id === 'go-checkout') location.href = 'carrito.html';
       else if (e.target.id === 'back-cart') renderCart();
       else if (e.target.closest('[data-fav-remove]')) { await toggleFav(e.target.closest('[data-fav-remove]').dataset.favRemove); }
       else if (e.target.closest('[data-fav-add]')) { const b = e.target.closest('[data-fav-add]'); await addToCart(Number(b.dataset.favAdd), b.dataset.name); }
@@ -509,6 +495,144 @@
     chatTimer = setInterval(load, 15000);
   }
 
+  /* ───────── Página de detalle de compra ───────── */
+  const money2 = (n) => '$' + Number(n).toFixed(2);
+
+  async function checkoutPage() {
+    const root = $('#checkout-root');
+    if (!root) return;
+    let step = 'review';
+
+    function productCell(i, editable) {
+      const href = `producto.html?slug=${encodeURIComponent(i.slug)}`;
+      return `<div class="checkout-product">
+        <a href="${href}"><img src="${esc(i.image)}" alt="" /></a>
+        <div class="checkout-meta">
+          <a class="checkout-name" href="${href}">${esc(cap(i.name))}</a>
+          ${i.size ? `<p>${esc(/^talla/i.test(i.size) ? i.size : `Talla: ${i.size}`)}</p>` : ''}
+          ${i.color ? `<p><span class="dot" style="--swatch-color:${esc(i.color.hex)}"></span>Color: ${esc(i.color.name)}</p>` : ''}
+        </div>
+        ${editable ? `<button class="remove-x" type="button" data-remove aria-label="Quitar ${esc(cap(i.name))}">×</button>` : ''}
+      </div>`;
+    }
+
+    function sheet(cart) {
+      const editable = step === 'review';
+      const rows = cart.items.map((i) => `<tr data-item="${i.id}">
+        <td>${productCell(i, editable)}</td>
+        <td class="checkout-num" data-label="Precio">${money2(i.unitPrice)}</td>
+        <td data-label="Cantidad">${editable
+          ? `<div class="qty" role="group" aria-label="Cantidad de ${esc(cap(i.name))}"><button type="button" data-qty="${i.qty - 1}" aria-label="Quitar uno">−</button><span>${i.qty}</span><button type="button" data-qty="${i.qty + 1}" aria-label="Agregar uno">+</button></div>`
+          : `<span class="checkout-num">${i.qty}</span>`}</td>
+        <td class="checkout-num" data-label="Total">${money2(i.lineTotal)}</td>
+      </tr>`).join('');
+      const u = state.user || {};
+      const form = step === 'details' ? `<form class="stack" id="checkout-form">
+          <h2 id="delivery-title">Datos de entrega</h2>
+          <label class="field">Nombre<input name="name" required maxlength="100" value="${esc(u.name || '')}" autocomplete="name" /></label>
+          <label class="field">Correo electrónico<input name="email" type="email" required value="${esc(u.email || '')}" autocomplete="email" /></label>
+          <label class="field">Teléfono<input name="phone" type="tel" maxlength="40" autocomplete="tel" /></label>
+          <label class="field">Dirección de entrega<textarea name="address" rows="3" required maxlength="300" autocomplete="street-address"></textarea></label>
+          <label class="field">Notas (opcional)<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+          <p class="form-error" role="alert" hidden></p>
+          <button class="btn" type="submit">Confirmar pedido · ${money2(cart.total)}</button>
+        </form>` : '<button class="btn" type="button" id="checkout-next">Siguiente</button>';
+      return `<div class="checkout-top">
+        <button class="checkout-back" type="button" id="checkout-back">Atrás</button>
+        <h1 class="section-title">Carrito</h1>
+        <a class="link-all checkout-continue" href="index.html">Continuar comprando</a>
+      </div>
+      <div class="checkout-layout">
+        <section class="checkout-sheet" aria-label="Productos del pedido">
+          <table class="checkout-table">
+            <thead><tr>
+              <th scope="col">Resumen del pedido</th>
+              <th scope="col">Precio</th>
+              <th scope="col">Cantidad</th>
+              <th scope="col">Total</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </section>
+        <aside class="checkout-summary">
+          <h2>Tu pedido</h2>
+          <dl>
+            <dt>Subtotal (${cart.count})</dt><dd>${money2(cart.subtotal)}</dd>
+            <dt>Impuesto</dt><dd>${money2(cart.tax)}</dd>
+            <dt>Envío</dt><dd>${money2(cart.shipping)}</dd>
+            <dt class="grand">Total del pedido</dt><dd class="grand">${money2(cart.total)}</dd>
+          </dl>
+          <p class="checkout-note">El importe total que usted paga incluye todos los aranceles e impuestos aplicables.</p>
+          ${form}
+        </aside>
+      </div>`;
+    }
+
+    async function draw() {
+      const cart = await api('/cart');
+      state.cart = cart;
+      renderCounts();
+      if (!cart.items.length) {
+        step = 'review';
+        root.innerHTML = `<div class="checkout-top">
+          <a class="checkout-back" href="index.html">Atrás</a>
+          <h1 class="section-title">Carrito</h1>
+          <a class="link-all checkout-continue" href="index.html">Continuar comprando</a>
+        </div>${emptyHTML('Tu bolsa está vacía.', 'perros.html', 'Ver productos')}`;
+        return;
+      }
+      root.innerHTML = sheet(cart);
+    }
+
+    root.addEventListener('click', async (e) => {
+      if (e.target.id === 'checkout-back') {
+        if (step === 'details') { step = 'review'; draw(); }
+        else if (history.length > 1) history.back();
+        else location.href = 'index.html';
+        return;
+      }
+      if (e.target.id === 'checkout-next') { step = 'details'; draw(); return; }
+      const item = e.target.closest('[data-item]');
+      if (!item || step !== 'review') return;
+      try {
+        if (e.target.closest('[data-qty]')) {
+          const qty = Number(e.target.closest('[data-qty]').dataset.qty);
+          state.cart = qty < 1
+            ? await api(`/cart/${item.dataset.item}`, { method: 'DELETE' })
+            : await api(`/cart/${item.dataset.item}`, { method: 'PATCH', body: { qty } });
+          renderCounts();
+          draw();
+        } else if (e.target.closest('[data-remove]')) {
+          state.cart = await api(`/cart/${item.dataset.item}`, { method: 'DELETE' });
+          renderCounts();
+          draw();
+        }
+      } catch (ex) { toast(ex.message); }
+    });
+
+    root.addEventListener('submit', async (e) => {
+      if (e.target.id !== 'checkout-form') return;
+      e.preventDefault();
+      const f = e.target, err = $('.form-error', f), data = Object.fromEntries(new FormData(f));
+      if (err) err.hidden = true;
+      try {
+        const o = await api('/orders', { method: 'POST', body: data });
+        state.cart = { items: [], count: 0, subtotal: 0 }; renderCounts();
+        step = 'done';
+        root.innerHTML = `<div class="checkout-done">
+          <h1 class="section-title">¡Pedido recibido!</h1>
+          <p>Gracias, ${esc(data.name)}. Tu pedido <strong>${esc(o.code)}</strong> por <strong>${money2(o.total)}</strong> quedó registrado.</p>
+          <p class="muted">Te contactaremos a ${esc(data.email)} para coordinar el pago y la entrega.</p>
+          <a class="btn" href="index.html">Seguir comprando</a>
+        </div>`;
+      } catch (ex) {
+        if (err) { err.textContent = ex.message; err.hidden = false; } else toast(ex.message);
+      }
+    });
+
+    await draw();
+  }
+
   /* ───────── Newsletter ───────── */
   $('#newsletter-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -520,7 +644,7 @@
   });
 
   /* ───────── Arranque ───────── */
-  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage };
+  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage, checkout: checkoutPage };
   (async () => {
     await loadState().catch(() => {});
     const run = pages[document.body.dataset.page];
