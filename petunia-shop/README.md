@@ -25,7 +25,7 @@ src/auth.js          Contraseñas (scrypt), sesiones, visitante anónimo, límit
 src/products.js      Listado, filtros y búsqueda
 src/routes/          catalog · shop (favoritos, bolsa, pedidos) · account (auth, reseñas, newsletter, chat) · admin
 src/layout.js        Cabecera y pie generados desde la base de datos
-views/*.html         Páginas (index, perros, gatos, producto, search)
+views/*.html         Páginas (index, perros, gatos, información, producto, search)
 public/              styles.css, app.js (frontend) y media/
 ```
 

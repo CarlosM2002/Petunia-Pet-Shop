@@ -42,7 +42,7 @@ function seed() {
     for (const [k, v] of Object.entries(settings)) set(k, v);
 
     const nav = ins('INSERT INTO nav_links (label,href,position) VALUES (?,?,?)');
-    [['Home','index.html'],['Gatos','gatos.html'],['Perros','perros.html'],['Promociones','#'],['Información','#']]
+    [['Home','index.html'],['Gatos','gatos.html'],['Perros','perros.html'],['Promociones','#'],['Información','informacion.html']]
       .forEach(([l,h],i) => nav(l,h,i));
 
     const perk = ins('INSERT INTO perks (text,position) VALUES (?,?)');
@@ -54,9 +54,9 @@ function seed() {
     const col = ins('INSERT INTO footer_columns (title,position) VALUES (?,?)');
     const fl = ins('INSERT INTO footer_links (column_id,label,href,position) VALUES (?,?,?,?)');
     let c = col('¿Necesitas ayuda?', 0);
-    ['Visita nuestra página','de preguntas','frecuentes.'].forEach((l,i) => fl(c,l,'#',i));
+    fl(c, 'Visita nuestra página de preguntas frecuentes.', 'informacion.html#preguntas', 0);
     c = col('Contáctanos', 1);
-    ['Síguenos en nuestras','redes sociales y','entérate de todo lo nuevo.'].forEach((l,i) => fl(c,l,'#',i));
+    fl(c, 'Síguenos en nuestras redes sociales y entérate de todo lo nuevo.', '#', 0);
 
     const soc = ins('INSERT INTO social_links (network,url,icon,position) VALUES (?,?,?,?)');
     [['instagram','social-footer.svg'],['facebook','social-facebook.svg'],['pinterest','social-pinterest.svg'],['tiktok','social-tiktok.svg']]

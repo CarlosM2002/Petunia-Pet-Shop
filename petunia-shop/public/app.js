@@ -105,7 +105,7 @@
     $('#latest-title').textContent = s.latest_title;
     $('#latest').innerHTML = d.latest.map(latestHTML).join('');
     $('#about').innerHTML = `<img class="about-bg" src="media/${esc(s.about_image)}" alt="" loading="lazy" />
-      <div class="about-card"><strong>${esc(s.about_text_1)}</strong><p>${esc(s.about_text_2)}</p><a class="btn" href="#">${esc(s.about_cta)}</a></div>`;
+      <div class="about-card"><strong>${esc(s.about_text_1)}</strong><p>${esc(s.about_text_2)}</p><a class="btn" href="informacion.html">${esc(s.about_cta)}</a></div>`;
     $('#social-title').textContent = s.social_title;
     const item = (p) => `<a class="social-item${p.featured ? ' social-feature' : ''}" href="${esc(p.url)}" aria-label="Ver publicación en Instagram"><img src="media/${esc(p.image)}" alt="${esc(p.alt)}" loading="lazy" /></a>`;
     const feat = d.socialPosts.find((p) => p.featured);

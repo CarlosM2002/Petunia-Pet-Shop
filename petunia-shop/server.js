@@ -52,6 +52,10 @@ function page(name) {
   return pageCache.get(name);
 }
 const db = require('./db');
+db.prepare("UPDATE nav_links SET href = 'informacion.html' WHERE label = 'Información' AND href = '#'").run();
+db.prepare(`UPDATE footer_links SET href = 'informacion.html#preguntas'
+  WHERE href = '#' AND column_id IN (SELECT id FROM footer_columns WHERE title = '¿Necesitas ayuda?')`).run();
+
 function siteForLayout() {
   const all = (sql, ...a) => db.prepare(sql).all(...a);
   return {

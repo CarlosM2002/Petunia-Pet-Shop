@@ -28,10 +28,16 @@ function renderHeader(site, current) {
 
 function renderFooter(site) {
   const s = site.settings;
-  const cols = site.footerColumns.map((c) => `          <div class="footer-col">
+  const cols = site.footerColumns.map((c) => {
+    const isSentenceColumn = ['¿Necesitas ayuda?', 'Contáctanos'].includes(c.title);
+    const links = isSentenceColumn && c.links.length > 1
+      ? [{ label: c.links.map((l) => l.label).join(' '), href: c.links[0].href }]
+      : c.links;
+    return `          <div class="footer-col">
             <h2>${esc(c.title)}</h2>
-            ${c.links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join('\n            ')}
-          </div>`).join('\n');
+            ${links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join('\n            ')}
+          </div>`;
+  }).join('\n');
   const social = site.social.map((l) =>
     `<a href="${esc(l.url)}" aria-label="${esc(l.network)}"><img src="media/${esc(l.icon)}" alt="" /></a>`).join('\n            ');
   return `    <footer class="site-footer">
