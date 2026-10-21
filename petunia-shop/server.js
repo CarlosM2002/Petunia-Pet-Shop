@@ -3,6 +3,8 @@ const fs = require('fs');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { seedIfEmpty } = require('./db/seed');
+seedIfEmpty();
+require('./db/gatos').addGatos();
 const { identify } = require('./src/auth');
 const { renderHeader, renderFooter } = require('./src/layout');
 

@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const db = require('./index');
 const { hashPassword } = require('../src/auth');
 const { refreshSearchText } = require('../src/products');
+const { addGatos } = require('./gatos');
+const { applySizes } = require('./tallas');
 
 const money = (usd) => Math.round(usd * 100);
 const ins = (sql) => { const s = db.prepare(sql); return (...a) => s.run(...a).lastInsertRowid; };
@@ -146,6 +148,9 @@ function seed() {
       sec(id, 'Tela y cuidados', 'Consulta con nuestro equipo los materiales y las indicaciones de cuidado de este producto.', 0, 2);
       sec(id, 'Envíos y devoluciones', 'Para conocer los detalles de envío o solicitar ayuda con tu pedido, ponte en contacto con nuestro equipo.', 1, 3);
     });
+
+    addGatos();
+    applySizes();
 
     db.prepare('SELECT id FROM products').all().forEach((r) => refreshSearchText(r.id));
 
