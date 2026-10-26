@@ -39,7 +39,7 @@ function quoteCart(rows) {
 /* ───────── Bolsa ───────── */
 function cartPayload(owner) {
   const rows = db.prepare(`
-    SELECT ci.id, ci.qty, p.id AS productId, p.slug, p.name, p.price_cents AS priceCents, p.stock,
+    SELECT ci.id, ci.qty, p.id AS productId, p.slug, p.name, COALESCE(p.sale_price_cents, p.price_cents) AS priceCents, p.stock,
            pc.name AS colorName, pc.hex AS colorHex, s.label AS sizeLabel,
            (SELECT file FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1) AS image
     FROM cart_items ci JOIN products p ON p.id = ci.product_id

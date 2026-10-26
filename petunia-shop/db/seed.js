@@ -161,6 +161,7 @@ function seed() {
         .run(process.env.ADMIN_EMAIL, hashPassword(process.env.ADMIN_PASSWORD));
     }
   })();
+  require('./migrate')(db);   // restablece textos de ayuda y preguntas frecuentes por defecto
 }
 
 function seedIfEmpty() {

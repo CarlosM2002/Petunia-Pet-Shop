@@ -59,7 +59,7 @@ router.get('/categories/:slug', (req, res) => {
       types: all(`SELECT t.slug, t.name FROM product_types t WHERE EXISTS (SELECT 1 FROM products p WHERE p.type_id = t.id AND ${scope}) ORDER BY t.name`, cat.id),
       sizes: all(`SELECT s.label FROM sizes s WHERE EXISTS (SELECT 1 FROM product_sizes ps JOIN products p ON p.id = ps.product_id WHERE ps.size_id = s.id AND ${scope}) ORDER BY s.position`, cat.id).map((s) => s.label),
       colors: all(`SELECT lower(pc.hex) AS hex, MIN(pc.name) AS name FROM product_colors pc JOIN products p ON p.id = pc.product_id WHERE ${scope} GROUP BY lower(pc.hex) ORDER BY MIN(pc.id)`, cat.id),
-      collections: all(`SELECT c.slug, c.name FROM collections c WHERE EXISTS (SELECT 1 FROM products p WHERE p.collection_id = c.id AND ${scope}) ORDER BY c.name`, cat.id),
+      collections: all(`SELECT c.slug, c.name FROM collections c WHERE EXISTS (SELECT 1 FROM products p WHERE p.collection_id = c.id AND ${scope}) ORDER BY c.position, c.id`, cat.id),
       sorts: [{ value: 'featured', label: 'Destacados' }, { value: 'new', label: 'Más nuevos' },
         { value: 'price_asc', label: 'Precio: menor a mayor' }, { value: 'price_desc', label: 'Precio: mayor a menor' }],
     },

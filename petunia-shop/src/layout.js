@@ -68,4 +68,17 @@ ${cols}
     <button class="chat-button" id="btn-chat" type="button" aria-label="Abrir chat"><img src="media/chat.svg" alt="" /></button>`;
 }
 
-module.exports = { renderHeader, renderFooter, esc };
+/* Preguntas frecuentes y textos editables desde el panel de administración. */
+function renderFaq(faqs) {
+  return faqs.map((f) => `            <details class="accordion">
+              <summary>${esc(f.question)}</summary>
+              ${String(f.answer).split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('')}
+            </details>`).join('\n');
+}
+function fillTokens(html, settings, faqs) {
+  return html
+    .replace('<!--@faq-->', () => renderFaq(faqs))
+    .replace(/\{\{s:([a-z0-9_]+)\}\}/g, (_, k) => esc(settings[k] ?? ''));
+}
+
+module.exports = { renderHeader, renderFooter, renderFaq, fillTokens, esc };

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Administración | Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="admin.css?v=2" />
+  </head>
+  <body>
+    <section id="gate" class="gate" hidden>
+      <form id="login" class="card gate-card">
+        <h1>Petunia · Administración</h1>
+        <p id="gate-msg" class="muted">Inicia sesión con tu cuenta de administrador.</p>
+        <label>Correo<input type="email" name="email" required autocomplete="username" /></label>
+        <label>Contraseña<input type="password" name="password" required autocomplete="current-password" /></label>
+        <p id="login-error" class="error" role="alert"></p>
+        <button class="btn" type="submit">Entrar</button>
+        <button class="btn ghost" type="button" id="gate-logout" hidden>Cerrar sesión</button>
+      </form>
+    </section>
+
+    <div id="app" class="app" hidden>
+      <aside class="side">
+        <div class="brand">Petunia<small>Administración</small></div>
+        <nav id="nav">
+          <button data-view="resumen">Resumen</button>
+          <button data-view="pedidos">Pedidos</button>
+          <button data-view="productos">Productos</button>
+          <button data-view="clientes">Clientes</button>
+          <button data-view="colecciones">Colecciones</button>
+          <button data-view="promociones">Promociones</button>
+          <button data-view="ayuda">Página de ayuda</button>
+        </nav>
+        <div class="side-foot">
+          <a href="index.html" target="_blank" rel="noopener">Ver tienda ↗</a>
+          <span id="me" class="muted"></span>
+          <button class="link" id="logout" type="button">Cerrar sesión</button>
+        </div>
+      </aside>
+      <main id="view" class="view"></main>
+    </div>
+
+    <dialog id="dlg"></dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="admin-panel.js?v=1"></script>
+  </body>
+</html>

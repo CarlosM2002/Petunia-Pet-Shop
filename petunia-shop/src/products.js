@@ -37,7 +37,8 @@ function hydrate(rows, owner) {
   const im = by(images), co = by(colors);
   return rows.map((r) => ({
     id: r.id, slug: r.slug, name: r.name, subtitle: r.subtitle, description: r.description,
-    price: r.price_cents / 100, priceCents: r.price_cents,
+    price: (r.sale_price_cents ?? r.price_cents) / 100, priceCents: r.sale_price_cents ?? r.price_cents,
+    regularPrice: r.sale_price_cents != null ? r.price_cents / 100 : null,
     isNew: !!r.is_new, stock: r.stock,
     category: r.category_slug, type: r.type_name, collection: r.collection_name,
     images: (im[r.id] || []).map((i) => ({ src: `media/${i.file}`, alt: i.alt || r.name })),
@@ -49,8 +50,8 @@ function hydrate(rows, owner) {
 const SORTS = {
   featured: 'p.sort_order ASC',
   new: 'p.is_new DESC, p.sort_order ASC',
-  price_asc: 'p.price_cents ASC, p.sort_order ASC',
-  price_desc: 'p.price_cents DESC, p.sort_order ASC',
+  price_asc: 'COALESCE(p.sale_price_cents, p.price_cents) ASC, p.sort_order ASC',
+  price_desc: 'COALESCE(p.sale_price_cents, p.price_cents) DESC, p.sort_order ASC',
 };
 const list = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -71,6 +72,7 @@ function listProducts(q, owner) {
     where.push(`EXISTS (SELECT 1 FROM product_sizes ps JOIN sizes s ON s.id = ps.size_id WHERE ps.product_id = p.id AND s.label IN (${placeholders(sizes.length)}))`);
     args.push(...sizes);
   }
+  if (q.sale === '1') where.push('p.sale_price_cents IS NOT NULL');
   for (const flag of ['new', 'bestseller', 'latest']) {
     if (q[flag] === '1') where.push(`p.is_${flag} = 1`);
   }
