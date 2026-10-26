@@ -47,7 +47,7 @@ function renderFooter(site) {
             <h2>${esc(s.newsletter_title)}</h2>
             <form id="newsletter-form">
               <label class="sr-only" for="email">Correo electrónico</label>
-              <input id="email" name="email" type="email" placeholder="Tu correo electrónico" required />
+              <input id="email" name="email" type="email" data-allowed-chars="email" placeholder="Ej. john@correo.com" required />
               <button type="submit" aria-label="Enviar correo"><img src="media/arrow-forward.svg" alt="" /></button>
             </form>
             <label class="consent">
