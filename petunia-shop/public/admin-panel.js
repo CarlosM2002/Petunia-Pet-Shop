@@ -223,7 +223,7 @@
     });
     f.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.id === 'add-color') { draft.colors.push({ id: 0, name: '', hex: '#4adbe0' }); renderColors(); }
+      if (b.id === 'add-color') { draft.colors.push({ id: 0, name: '', hex: '#ffc93c' }); renderColors(); }
       if (b.dataset.rmcolor) { draft.colors.splice(+b.dataset.rmcolor, 1); renderColors(); }
       if (b.dataset.imrm) { draft.images.splice(+b.dataset.imrm, 1); renderImages(); }
       if (b.dataset.imv) { const [i, d] = b.dataset.imv.split(':').map(Number); [draft.images[i], draft.images[i + d]] = [draft.images[i + d], draft.images[i]]; renderImages(); }

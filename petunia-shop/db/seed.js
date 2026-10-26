@@ -77,7 +77,7 @@ function seed() {
     // ── Catálogo
     const cat = ins('INSERT INTO categories (slug,name,hero_image,hero_alt) VALUES (?,?,?,?)');
     const perros = cat('perros','Perros','dogs-hero.png','Colección canina de Petunia Pet Shop');
-    const gatos  = cat('gatos','Gatos',null,null);
+    const gatos  = cat('gatos','Gatos','cats-hero.png','Colección felina de Petunia Pet Shop');
 
     const coll = ins('INSERT INTO collections (slug,name,description) VALUES (?,?,?)');
     const navidena = coll('navidena','Navideña','Accesorios de la colección navideña');

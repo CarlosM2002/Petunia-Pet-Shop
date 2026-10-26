@@ -35,6 +35,10 @@ module.exports = function migrate(db) {
     db.exec('UPDATE collections SET position = id');
   }
 
+  db.prepare(`UPDATE categories SET hero_image = ?, hero_alt = ?
+    WHERE slug = 'gatos' AND (hero_image IS NULL OR hero_image = '')`)
+    .run('cats-hero.png', 'Colección felina de Petunia Pet Shop');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS promotions (
       id         INTEGER PRIMARY KEY,
