@@ -1,8 +1,4 @@
-/* Productos de la categoría Gatos.
-   - Es idempotente: si el slug ya existe, no lo duplica.
-   - Uso independiente (no borra el resto de datos):  node db/gatos.js
-   - También lo llama db/seed.js para instalaciones nuevas.
-   Las imágenes están en public/media/ (gato-*.jpg). */
+
 const db = require('./index');
 const { refreshSearchText } = require('../src/products');
 const fs = require('fs');
