@@ -1,5 +1,4 @@
-/* Crea (o convierte en administrador) una cuenta SIN borrar datos.
-   Uso:  node db/crear-admin.js correo@ejemplo.com "una-contraseña-larga" "Tu nombre" */
+
 const db = require('./index');
 const { hashPassword } = require('../src/auth');
 
