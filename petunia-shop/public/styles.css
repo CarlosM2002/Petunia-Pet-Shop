@@ -10,7 +10,7 @@
   --grape: #43197a;
   --grape-deep: #2d0f55;
   --purple: #945bc0;
-  --sun: #4adbe0;
+  --sun: #ffc93c;
   --lilac: #eed8ff;
   --tint: #f8f1ff;
   --muted: #5d5070;
@@ -978,7 +978,7 @@ h1, h2, h3, p { margin: 0; }
   transition: background 0.2s, transform 0.25s var(--ease);
 }
 .reviews:hover { background: var(--lilac); transform: rotate(-0.8deg); }
-.stars { color: #14b8c4; font-size: 26px; letter-spacing: 3px; }
+.stars { color: #e89a00; font-size: 26px; letter-spacing: 3px; }
 .reviews a { font-weight: 600; color: var(--grape); text-decoration: underline; text-underline-offset: 4px; }
 .reviews a:hover { color: var(--purple); }
 .buy .desc p { margin-bottom: 12px; }
@@ -1004,7 +1004,7 @@ h1, h2, h3, p { margin: 0; }
   min-height: calc(100vh - 110px);
   background:
     radial-gradient(circle at 6% 24%, rgba(148, 91, 192, 0.45) 0 90px, transparent 91px),
-    radial-gradient(circle at 97% 16%, rgba(74, 219, 224, 0.85) 0 100px, transparent 101px),
+    radial-gradient(circle at 97% 16%, rgba(255, 201, 60, 0.85) 0 100px, transparent 101px),
     radial-gradient(circle at 80% 92%, rgba(148, 91, 192, 0.35) 0 120px, transparent 121px),
     linear-gradient(180deg, var(--grape-deep), var(--grape));
 }
@@ -1364,7 +1364,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .star-input { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
 .star-input input { position: absolute; opacity: 0; pointer-events: none; }
 .star-input label { color: #cdbfe0; font-size: 34px; line-height: 1; cursor: pointer; transition: color 0.15s, transform 0.2s var(--ease); }
-.star-input label:hover, .star-input label:hover ~ label, .star-input input:checked ~ label { color: #14b8c4; }
+.star-input label:hover, .star-input label:hover ~ label, .star-input input:checked ~ label { color: #e89a00; }
 .star-input label:hover { transform: scale(1.2) rotate(-6deg); }
 .star-input input:focus-visible + label { outline: 3px solid var(--purple); border-radius: 6px; }
 .review-login { padding: 22px; border: 2px dashed var(--purple); border-radius: 16px; background: var(--tint); }
@@ -1439,10 +1439,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .promo-hero { padding: 64px 0 40px; background: var(--tint); border-bottom: var(--line); }
 .promo-hero h1 { font-family: var(--display); font-size: clamp(38px, 6vw, 68px); font-weight: 600; line-height: 1.1; }
 .promo-hero p { max-width: 60ch; margin-top: 14px; color: var(--muted); font-size: 18px; }
-.promo-chips { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 0; padding: 0; list-style: none; }
-.promo-chips:empty { display: none; }
-.promo-chips li { padding: 6px 18px; border: var(--line); border-radius: 999px; background: var(--sun); font-family: var(--display); font-size: 17px; font-weight: 600; }
-.promo-chips li span { font-weight: 500; opacity: 0.8; }
+.sale-promo { margin-top: 8px; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.4; }
 .promo-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 32px 28px; }
 .promo-collection {
   --accent: var(--purple);

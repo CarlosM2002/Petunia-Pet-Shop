@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../../db');
 const { hydrate, listProducts, getProductRow, normalize } = require('../products');
-const { promoStatus } = require('../promotions');
+const { promoStatus, targetIds } = require('../promotions');
 
 const router = express.Router();
 const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -53,7 +53,7 @@ router.get('/home', (req, res) => {
 router.get('/categories/:slug', (req, res) => {
   const cat = db.prepare('SELECT id, slug, name, hero_image AS heroImage, hero_alt AS heroAlt FROM categories WHERE slug = ?').get(req.params.slug);
   if (!cat) return res.status(404).json({ error: 'Categoría no encontrada.' });
-  const scope = 'p.active = 1 AND p.category_id = ?';
+  const scope = 'p.active = 1 AND EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id = p.id AND pc.category_id = ?)';
   res.json({
     ...cat,
     filters: {
@@ -61,6 +61,23 @@ router.get('/categories/:slug', (req, res) => {
       sizes: all(`SELECT s.label FROM sizes s WHERE EXISTS (SELECT 1 FROM product_sizes ps JOIN products p ON p.id = ps.product_id WHERE ps.size_id = s.id AND ${scope}) ORDER BY s.position`, cat.id).map((s) => s.label),
       colors: all(`SELECT lower(pc.hex) AS hex, MIN(pc.name) AS name FROM product_colors pc JOIN products p ON p.id = pc.product_id WHERE ${scope} GROUP BY lower(pc.hex) ORDER BY MIN(pc.id)`, cat.id),
       collections: all(`SELECT c.slug, c.name FROM collections c WHERE EXISTS (SELECT 1 FROM products p WHERE p.collection_id = c.id AND ${scope}) ORDER BY c.position, c.id`, cat.id),
+      sorts: [{ value: 'featured', label: 'Destacados' }, { value: 'new', label: 'Más nuevos' },
+        { value: 'price_asc', label: 'Precio: menor a mayor' }, { value: 'price_desc', label: 'Precio: mayor a menor' }],
+    },
+  });
+});
+
+router.get('/collections/:slug', (req, res) => {
+  const collection = db.prepare('SELECT id, slug, name, description FROM collections WHERE slug = ?').get(req.params.slug);
+  if (!collection) return res.status(404).json({ error: 'Colección no encontrada.' });
+  const scope = 'p.active = 1 AND p.collection_id = ?';
+  res.json({
+    ...collection,
+    filters: {
+      types: all(`SELECT t.slug, t.name FROM product_types t WHERE EXISTS (SELECT 1 FROM products p WHERE p.type_id = t.id AND ${scope}) ORDER BY t.name`, collection.id),
+      sizes: all(`SELECT s.label FROM sizes s WHERE EXISTS (SELECT 1 FROM product_sizes ps JOIN products p ON p.id = ps.product_id WHERE ps.size_id = s.id AND ${scope}) ORDER BY s.position`, collection.id).map((s) => s.label),
+      colors: all(`SELECT lower(pc.hex) AS hex, MIN(pc.name) AS name FROM product_colors pc JOIN products p ON p.id = pc.product_id WHERE ${scope} GROUP BY lower(pc.hex) ORDER BY MIN(pc.id)`, collection.id),
+      collections: all(`SELECT c.slug, c.name FROM collections c WHERE EXISTS (SELECT 1 FROM products p WHERE p.collection_id = c.id AND ${scope}) ORDER BY c.position, c.id`, collection.id),
       sorts: [{ value: 'featured', label: 'Destacados' }, { value: 'new', label: 'Más nuevos' },
         { value: 'price_asc', label: 'Precio: menor a mayor' }, { value: 'price_desc', label: 'Precio: mayor a menor' }],
     },
@@ -81,19 +98,32 @@ router.get('/promotions-page', (req, res) => {
   const rows = db.prepare(`SELECT p.*, t.slug AS type_slug, t.name AS type_name, c.slug AS collection_slug, c.name AS collection_name, cat.slug AS category_slug
     FROM products p JOIN categories cat ON cat.id = p.category_id LEFT JOIN product_types t ON t.id = p.type_id
     LEFT JOIN collections c ON c.id = p.collection_id WHERE p.active = 1 AND p.sale_price_cents IS NOT NULL ORDER BY p.sort_order`).all();
+  const promoByProduct = new Map();
+  const activePromos = all('SELECT * FROM promotions ORDER BY position, id').filter((p) => promoStatus(p) === 'activa');
+  for (const promo of activePromos) {
+    for (const productId of targetIds(promo)) {
+      if (!promoByProduct.has(productId)) {
+        promoByProduct.set(productId, { name: promo.name, percent: promo.percent, endsAt: promo.ends_at || null });
+      }
+    }
+  }
+  const sale = hydrate(rows, req.owner).map((product) => ({
+    ...product,
+    promotion: promoByProduct.get(product.id) || null,
+  }));
   const collections = all('SELECT id, slug, name, description, image FROM collections ORDER BY position, id').map((c) => {
-    const links = all(`SELECT cat.slug AS category, cat.name, COUNT(*) AS count FROM products p JOIN categories cat ON cat.id = p.category_id
+    const links = all(`SELECT cat.slug AS category, cat.name, COUNT(DISTINCT p.id) AS count FROM products p
+      JOIN product_categories pc ON pc.product_id = p.id JOIN categories cat ON cat.id = pc.category_id
       WHERE p.active = 1 AND p.collection_id = ? GROUP BY cat.id ORDER BY cat.id`, c.id);
+    const productCount = db.prepare('SELECT COUNT(*) AS count FROM products WHERE active = 1 AND collection_id = ?').get(c.id).count;
     const img = c.image || db.prepare(`SELECT file FROM product_images WHERE product_id IN
       (SELECT id FROM products WHERE active = 1 AND collection_id = ?) ORDER BY product_id, position LIMIT 1`).get(c.id)?.file || null;
-    return { slug: c.slug, name: c.name, description: c.description, image: img && `media/${img}`, links };
+    return { slug: c.slug, name: c.name, description: c.description, image: img && `media/${img}`, productCount, links };
   }).filter((c) => c.links.length);
   const s = siteData().settings;
   res.json({
     settings: { promo_title: s.promo_title, promo_intro: s.promo_intro, promo_sale_title: s.promo_sale_title, promo_collections_title: s.promo_collections_title },
-    promos: all('SELECT name, percent, scope, starts_at, ends_at, active FROM promotions ORDER BY position, id')
-      .filter((p) => promoStatus(p) === 'activa').map((p) => ({ name: p.name, percent: p.percent, endsAt: p.ends_at || null })),
-    sale: hydrate(rows, req.owner),
+    sale,
     collections,
   });
 });
@@ -111,11 +141,13 @@ router.get('/products/:slug', (req, res) => {
   if (!row) return res.status(404).json({ error: 'Producto no encontrado.' });
   const [product] = hydrate([row], req.owner);
   const rating = db.prepare('SELECT COUNT(*) AS count, AVG(rating) AS average FROM reviews WHERE product_id = ?').get(row.id);
-  const related = db.prepare(`${require('../products').BASE} WHERE p.active = 1 AND p.id != ? AND p.category_id = ?
-    ORDER BY (p.collection_id IS ? ) DESC, p.sort_order LIMIT 3`).all(row.id, row.category_id, row.collection_id);
+  const related = db.prepare(`${require('../products').BASE} WHERE p.active = 1 AND p.id != ?
+    AND EXISTS (SELECT 1 FROM product_categories current_pc JOIN product_categories related_pc ON related_pc.category_id = current_pc.category_id
+      WHERE current_pc.product_id = ? AND related_pc.product_id = p.id)
+    ORDER BY (p.collection_id IS ? ) DESC, p.sort_order LIMIT 3`).all(row.id, row.id, row.collection_id);
   res.json({
     ...product,
-    categoryName: db.prepare('SELECT name FROM categories WHERE id = ?').get(row.category_id).name,
+    categoryName: product.categories.length > 1 ? 'Perros y gatos' : db.prepare('SELECT name FROM categories WHERE id = ?').get(row.category_id).name,
     sizes: all('SELECT s.id, s.label FROM product_sizes ps JOIN sizes s ON s.id = ps.size_id WHERE ps.product_id = ? ORDER BY s.position', row.id),
     sections: all('SELECT title, body, is_open AS open FROM product_sections WHERE product_id = ? ORDER BY position', row.id).map((s) => ({ ...s, open: !!s.open })),
     rating: { count: rating.count, average: rating.average ? Math.round(rating.average * 10) / 10 : null },

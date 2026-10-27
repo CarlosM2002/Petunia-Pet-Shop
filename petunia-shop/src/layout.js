@@ -4,8 +4,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 function renderHeader(site, current) {
   const msg = esc(site.settings.announcement);
   const track = Array.from({ length: 8 }, () => `<span>${msg}</span>`).join('');
-  const nav = site.nav.map((n) =>
-    `<a href="${esc(n.href)}"${n.href === current ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`).join('\n          ');
+  const nav = site.nav.map((n) => {
+    const href = n.href === '#' && /^promocion/i.test(n.label) ? 'promociones.html' : n.href;   // respaldo si la base aún tiene "#"
+    return `<a href="${esc(href)}"${href === current ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`;
+  }).join('\n          ');
   return `    <div class="announcement" aria-label="${msg}"><div class="announcement-track">${track}</div></div>
     <header class="site-header">
       <div class="navigation">
@@ -47,7 +49,7 @@ function renderFooter(site) {
             <h2>${esc(s.newsletter_title)}</h2>
             <form id="newsletter-form">
               <label class="sr-only" for="email">Correo electrónico</label>
-              <input id="email" name="email" type="email" data-allowed-chars="email" placeholder="Ej. john@correo.com" required />
+              <input id="email" name="email" type="email" placeholder="Tu correo electrónico" required />
               <button type="submit" aria-label="Enviar correo"><img src="media/arrow-forward.svg" alt="" /></button>
             </form>
             <label class="consent">

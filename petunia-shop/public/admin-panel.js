@@ -15,7 +15,9 @@
     else if (body !== undefined) { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
     const r = await fetch('/api' + path, opts);
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'Ocurrió un error.');
+    if (!r.ok) throw new Error(r.status === 404
+      ? `${data.error || 'Ruta no encontrada.'} (${method} /api${path})`
+      : data.error || 'Ocurrió un error.');
     return data;
   }
   let toastTimer;
@@ -96,6 +98,7 @@
     if (oState.q) qs.set('q', oState.q);
     const d = await api('/admin/orders?' + qs);
     const opts = (cur) => Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('');
+    const orderOpts = (cur) => `${cur === 'delivered' ? '<option value="delivered" selected disabled>Recibido</option>' : ''}${Object.entries(STATUS).filter(([k]) => k !== 'delivered').map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('')}`;
     view.innerHTML = `<h1>Pedidos <span class="muted">(${d.total})</span></h1>
       <div class="bar"><select id="o-status"><option value="">Todos los estados</option>${opts(oState.status)}</select>
         <input id="o-q" class="grow" type="search" placeholder="Buscar por código, nombre o correo" value="${esc(oState.q)}">
@@ -103,7 +106,7 @@
       <div class="stack">${d.orders.map((o) => `
         <article class="card order">
           <header><div><strong>${esc(o.code)}</strong> <span class="muted">· ${fdate(o.createdAt)}</span></div>
-            <select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${opts(o.status)}</select></header>
+            <select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${orderOpts(o.status)}</select></header>
           <div class="cols">
             <div><b>${esc(o.customerName)}</b><br>${esc(o.email)}${o.phone ? `<br>${esc(o.phone)}` : ''}${o.userId ? '<br><span class="badge ok">Usuario registrado</span>' : ''}</div>
             <div>${esc(o.address)}${o.notes ? `<br><em class="muted">${esc(o.notes)}</em>` : ''}</div>
@@ -157,12 +160,13 @@
     if (b.dataset.hard && confirm('¿Eliminar definitivamente? Esta acción no se puede deshacer (los pedidos anteriores conservan su detalle).')) { await api('/admin/products/' + b.dataset.hard + '?hard=1', { method: 'DELETE' }); toast('Producto eliminado'); go('productos'); }
   }));
 
-  async function productEditor(id) {
+  async function productEditor(id, opts = {}) {
     const [media] = await Promise.all([api('/admin/media')]);
     const p = id ? await api('/admin/products/' + id) : { name: '', subtitle: '', description: '', priceCents: 0, stock: 100, active: true, isNew: false, bestseller: false, latest: false,
-      category: META.categories[0].slug, type: '', collection: '', images: [], colors: [], sizes: ['Talla única'], sections: null };
+      category: META.categories[0].slug, type: '', collection: opts.collection || '', images: [], colors: [], sizes: ['Talla única'], sections: null };
     const draft = { images: [...p.images], colors: p.colors.map((c) => ({ ...c })), sections: p.sections ? p.sections.map((s) => ({ ...s })) : [] };
     const sel = (name, items, cur, blank) => `<select name="${name}">${blank ? `<option value="">${blank}</option>` : ''}${items.map((i) => `<option value="${esc(i.slug)}" ${cur === i.slug ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select>`;
+    const categoryOptions = [...META.categories, { slug: 'ambos', name: 'Ambos' }];
     const chk = (name, label, on) => `<label><input type="checkbox" name="${name}" ${on ? 'checked' : ''}> ${label}</label>`;
     openDlg(`<form id="pform"><h2 style="margin-top:0">${id ? 'Editar producto' : 'Nuevo producto'}</h2>
       <div class="grid2">
@@ -170,7 +174,7 @@
         <label>Subtítulo<input name="subtitle" maxlength="160" value="${esc(p.subtitle)}"></label>
         <label>Precio regular (USD)<input name="price" type="number" min="0" step="0.01" required value="${(p.priceCents / 100).toFixed(2)}"></label>
         <label>Stock<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label>
-        <label>Categoría${sel('category', META.categories, p.category)}</label>
+        <label>Categoría${sel('category', categoryOptions, p.category)}</label>
         <label>Tipo${sel('type', META.types, p.type, '—')}</label>
         <label>Colección${sel('collection', META.collections, p.collection, 'Ninguna')}</label>
         ${p.salePriceCents != null ? `<label>Precio en promoción<input disabled value="${money(p.salePriceCents)} (automático)"></label>` : '<span></span>'}
@@ -200,7 +204,7 @@
     });
     f.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.id === 'add-color') { draft.colors.push({ id: 0, name: '', hex: '#4adbe0' }); renderColors(); }
+      if (b.id === 'add-color') { draft.colors.push({ id: 0, name: '', hex: '#945bc0' }); renderColors(); }
       if (b.dataset.rmcolor) { draft.colors.splice(+b.dataset.rmcolor, 1); renderColors(); }
       if (b.dataset.imrm) { draft.images.splice(+b.dataset.imrm, 1); renderImages(); }
       if (b.dataset.imv) { const [i, d] = b.dataset.imv.split(':').map(Number); [draft.images[i], draft.images[i + d]] = [draft.images[i + d], draft.images[i]]; renderImages(); }
@@ -223,7 +227,7 @@
         sizes: fd.getAll('size'), images: draft.images, colors: draft.colors,
         sections: p.sections || draft.sections.length ? draft.sections : null };
       await api(id ? '/admin/products/' + id : '/admin/products', { method: id ? 'PUT' : 'POST', body });
-      closeDlg(); toast('Producto guardado'); go('productos');
+      closeDlg(); toast('Producto guardado'); opts.onSaved ? opts.onSaved() : go('productos');
     }));
   }
 
@@ -252,10 +256,8 @@
     const ids = list.map((p) => p.id), cids = colls.map((c) => c.id);
     const range = (p) => (p.startsAt || p.endsAt ? `${p.startsAt || 'ya'} → ${p.endsAt || 'sin fin'}` : 'Sin fechas');
     view.innerHTML = `<h1>Promociones</h1>
-      <p class="muted">Esta es la página <a href="/promociones.html" target="_blank" rel="noopener">promociones.html</a> de la tienda: arriba salen los productos en oferta y abajo las colecciones. Todo se maneja desde aquí.</p>
 
       <h2>1. Productos en oferta (descuentos)</h2>
-      <p class="muted">Un descuento en porcentaje que se aplica a los precios de la tienda y de la bolsa. Los productos con descuento aparecen solos arriba de la página. Si un producto entra en varias promociones, gana la que esté más arriba en la lista.</p>
       <div class="bar"><button class="btn" id="pr-new">+ Nueva promoción</button></div>
       <div class="stack">${list.map((p, i) => { const [lab, cls] = PSTATUS[p.status]; return `<div class="row"><div class="grow"><strong>${esc(p.name)}</strong> <span class="badge ${cls}">${lab}</span><br>
         <span class="muted">${p.percent}% · ${SCOPE[p.scope]}${p.scope === 'products' ? ` (${p.productIds.length})` : p.scopeRef ? `: ${esc(p.scopeRef)}` : ''} · ${esc(range(p))}</span></div>
@@ -263,7 +265,6 @@
         <button class="btn ghost sm" data-ptoggle="${p.id}:${p.active ? 0 : 1}">${p.active ? 'Pausar' : 'Activar'}</button><button class="btn sm" data-pedit="${p.id}">Editar</button><button class="btn danger sm" data-pdel="${p.id}">Eliminar</button></div></div>`; }).join('') || '<p class="muted">Aún no hay promociones.</p>'}</div>
 
       <h2>2. Colecciones</h2>
-      <p class="muted">Salen debajo de las ofertas, en este orden. Una colección solo se muestra si tiene productos (se asignan al editar cada producto).</p>
       <div class="bar"><button class="btn" id="c-new">+ Nueva colección</button></div>
       <div class="stack">${colls.map((c, i) => `<div class="row">${c.image ? `<img class="thumb" src="/media/${esc(c.image)}" alt="">` : ''}<div class="grow"><strong>${esc(c.name)}</strong> <span class="badge ${c.products ? '' : 'bad'}">${c.products} productos${c.products ? '' : ' · no se muestra'}</span><br><span class="muted">${esc(c.description || '')}</span></div>
         <div class="acts"><button class="btn ghost sm" data-cup="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button class="btn ghost sm" data-cdown="${i}" ${i === colls.length - 1 ? 'disabled' : ''}>↓</button>
@@ -295,21 +296,33 @@
   }
 
   async function collectionForm(c, done) {
-    const media = await api('/admin/media');
+    const [media, prods, detail] = await Promise.all([api('/admin/media'), api('/admin/products?status=all'), c ? api('/admin/collections/' + c.id) : { productIds: [] }]);
     let img = c?.image || '';
+    const inside = new Set(detail.productIds);
     openDlg(`<form id="cform"><h2 style="margin-top:0">${c ? 'Editar colección' : 'Nueva colección'}</h2>
       <label>Nombre<input name="name" required maxlength="80" value="${esc(c?.name || '')}"></label><br>
       <label>Descripción<textarea name="description" rows="3" maxlength="300">${esc(c?.description || '')}</textarea></label>
+      <fieldset><legend>Productos de esta colección</legend>
+        <input id="cq" type="search" placeholder="Buscar producto…" style="width:100%;margin-bottom:.5rem">
+        <div class="pickbox" id="cprods">${prods.map((x) => `<label data-n="${esc(x.name.toLowerCase())}"><input type="checkbox" name="pid" value="${x.id}" ${inside.has(x.id) ? 'checked' : ''}> ${esc(x.name)} <span class="muted">· ${esc(x.categoryName)}${x.collection && !inside.has(x.id) ? ` · ahora en ${esc(x.collection)}` : ''}${x.active ? '' : ' · archivado'}</span></label>`).join('') || '<p class="muted">Aún no hay productos.</p>'}</div>
+        <p class="muted" style="margin:.4rem 0"><span id="ccount"></span> Un producto solo puede estar en una colección: si marcas uno que ya está en otra, se mueve a esta.</p>
+        ${c ? '<button type="button" class="btn ghost sm" id="cnewprod">+ Crear producto nuevo en esta colección</button>' : '<p class="muted">Guarda la colección para poder crear productos nuevos dentro de ella.</p>'}</fieldset>
       <fieldset><legend>Imagen de portada (opcional)</legend><div id="cimg" class="thumbs"></div>
         <div class="pick"><input type="file" id="cup" accept="image/jpeg,image/png,image/webp"><span class="muted">o</span>
           <select id="cpick"><option value="">Elegir de public/media…</option>${media.map((f) => `<option>${esc(f)}</option>`).join('')}</select><button type="button" class="btn ghost sm" id="cuse">Usar</button></div>
         <p class="muted">Si no eliges ninguna, se usa la foto de uno de sus productos.</p></fieldset>
-      <p class="muted">Para meter productos en la colección, elígela al editar cada producto.</p>
       <div class="actions"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn" type="submit">Guardar</button></div></form>`);
-    const renderImg = () => { $('#cimg').innerHTML = img ? `<figure><img src="/media/${esc(img)}" alt=""><button type="button" class="btn ghost sm" id="crm">Quitar</button></figure>` : '<p class="muted">Sin imagen propia.</p>'; };
-    renderImg();
     const f = $('#cform');
-    f.addEventListener('click', (e) => { if (e.target.id === 'crm') { img = ''; renderImg(); } if (e.target.id === 'cuse' && $('#cpick').value) { img = $('#cpick').value; renderImg(); } });
+    const renderImg = () => { $('#cimg').innerHTML = img ? `<figure><img src="/media/${esc(img)}" alt=""><button type="button" class="btn ghost sm" id="crm">Quitar</button></figure>` : '<p class="muted">Sin imagen propia.</p>'; };
+    const count = () => { const n = f.querySelectorAll('input[name=pid]:checked').length; $('#ccount').textContent = `${n} producto${n === 1 ? '' : 's'} seleccionado${n === 1 ? '' : 's'}.`; };
+    renderImg(); count();
+    $('#cq').addEventListener('input', (e) => { const q = e.target.value.trim().toLowerCase(); $('#cprods').querySelectorAll('label').forEach((l) => { l.hidden = !!q && !l.dataset.n.includes(q); }); });
+    f.addEventListener('change', (e) => { if (e.target.name === 'pid') count(); });
+    f.addEventListener('click', (e) => {
+      if (e.target.id === 'crm') { img = ''; renderImg(); }
+      if (e.target.id === 'cuse' && $('#cpick').value) { img = $('#cpick').value; renderImg(); }
+      if (e.target.id === 'cnewprod') guard(async () => { closeDlg(); await productEditor(null, { collection: c.slug, onSaved: done }); })();
+    });
     $('#cup').addEventListener('change', guard(async (e) => {
       const file = e.target.files[0]; if (!file) return;
       if (file.size > 8 * 1024 * 1024) return toast('La imagen pesa más de 8 MB.', true);
@@ -317,7 +330,7 @@
     }));
     f.onsubmit = guard(async (e) => {
       e.preventDefault(); const fd = new FormData(f);
-      await api(c ? '/admin/collections/' + c.id : '/admin/collections', { method: c ? 'PUT' : 'POST', body: { name: fd.get('name'), description: fd.get('description'), image: img } });
+      await api(c ? '/admin/collections/' + c.id : '/admin/collections', { method: c ? 'PUT' : 'POST', body: { name: fd.get('name'), description: fd.get('description'), image: img, productIds: fd.getAll('pid') } });
       closeDlg(); META = await api('/admin/meta'); toast('Colección guardada'); done();
     });
   }

@@ -9,12 +9,14 @@ const normalize = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 
 /* Recalcula el texto de búsqueda (sin tildes) de un producto. */
 function refreshSearchText(productId) {
-  const p = db.prepare(`SELECT p.name, p.subtitle, p.description, t.name AS type, c.name AS collection, cat.name AS category
+  const p = db.prepare(`SELECT p.name, p.subtitle, p.description, t.name AS type, c.name AS collection
     FROM products p LEFT JOIN product_types t ON t.id = p.type_id LEFT JOIN collections c ON c.id = p.collection_id
-    JOIN categories cat ON cat.id = p.category_id WHERE p.id = ?`).get(productId);
+    WHERE p.id = ?`).get(productId);
   if (!p) return;
+  const categories = db.prepare(`SELECT c.name FROM product_categories pc JOIN categories c ON c.id = pc.category_id
+    WHERE pc.product_id = ?`).all(productId).map((c) => c.name);
   const colors = db.prepare('SELECT name FROM product_colors WHERE product_id = ?').all(productId).map((c) => c.name);
-  const text = normalize([p.name, p.subtitle, p.description, p.type, p.collection, p.category, ...colors].join(' '));
+  const text = normalize([p.name, p.subtitle, p.description, p.type, p.collection, ...categories, ...colors].join(' '));
   db.prepare('UPDATE products SET search_text = ? WHERE id = ?').run(text, productId);
 }
 
@@ -33,14 +35,16 @@ function hydrate(rows, owner) {
   const colors = db.prepare(`SELECT id, product_id, name, hex FROM product_colors WHERE product_id IN (${ph}) ORDER BY position`).all(...ids);
   const favs = new Set(db.prepare(`SELECT product_id FROM favorites WHERE ${owner.col} = ? AND product_id IN (${ph})`)
     .all(owner.val, ...ids).map((f) => f.product_id));
+  const categories = db.prepare(`SELECT pc.product_id, c.slug FROM product_categories pc
+    JOIN categories c ON c.id = pc.category_id WHERE pc.product_id IN (${ph}) ORDER BY c.id`).all(...ids);
   const by = (arr) => arr.reduce((m, x) => ((m[x.product_id] ||= []).push(x), m), {});
-  const im = by(images), co = by(colors);
+  const im = by(images), co = by(colors), ca = by(categories);
   return rows.map((r) => ({
     id: r.id, slug: r.slug, name: r.name, subtitle: r.subtitle, description: r.description,
     price: (r.sale_price_cents ?? r.price_cents) / 100, priceCents: r.sale_price_cents ?? r.price_cents,
     regularPrice: r.sale_price_cents != null ? r.price_cents / 100 : null,
     isNew: !!r.is_new, stock: r.stock,
-    category: r.category_slug, type: r.type_name, collection: r.collection_name,
+    category: r.category_slug, categories: (ca[r.id] || []).map((c) => c.slug), type: r.type_name, collection: r.collection_name,
     images: (im[r.id] || []).map((i) => ({ src: `media/${i.file}`, alt: i.alt || r.name })),
     colors: (co[r.id] || []).map((c) => ({ id: c.id, name: c.name, hex: c.hex })),
     favorite: favs.has(r.id),
@@ -57,7 +61,10 @@ const list = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boole
 
 function listProducts(q, owner) {
   const where = ['p.active = 1'], args = [];
-  if (q.category) { where.push('cat.slug = ?'); args.push(q.category); }
+  if (q.category) {
+    where.push('EXISTS (SELECT 1 FROM product_categories pc JOIN categories category_filter ON category_filter.id = pc.category_id WHERE pc.product_id = p.id AND category_filter.slug = ?)');
+    args.push(q.category);
+  }
   const types = list(q.type);
   if (types.length) { where.push(`t.slug IN (${placeholders(types.length)})`); args.push(...types); }
   const colls = list(q.collection);

@@ -7,6 +7,7 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => '$' + (Number.isInteger(n) ? n : n.toFixed(2));
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+  const instagramUrl = 'https://www.instagram.com/petuniaspetshop?utm_source=ig_web_button_share_sheet&xtok=ZDNlZDc0MzIxNw==';
 
   async function api(path, { method = 'GET', body } = {}) {
     const res = await fetch('/api' + path, {
@@ -99,7 +100,7 @@
     $('#best-grid').innerHTML = d.bestsellers.map(cardHTML).join('');
     $('#hall-title').textContent = s.collection_title;
     const cls = ['t-a', 't-b', 't-c', 't-d'];
-    const tile = (t, i) => `<a class="collection-tile ${cls[i % 4]}" href="perros.html?coleccion=halloween" aria-label="Explorar colección Halloween"><img src="media/${esc(t.image)}" alt="${esc(t.alt)}" loading="lazy" />${t.badge ? `<span class="chip">${esc(t.badge)}</span>` : ''}</a>`;
+    const tile = (t, i) => `<a class="collection-tile ${cls[i % 4]}" href="coleccion.html?coleccion=halloween" aria-label="Explorar colección Halloween"><img src="media/${esc(t.image)}" alt="${esc(t.alt)}" loading="lazy" />${t.badge ? `<span class="chip">${esc(t.badge)}</span>` : ''}</a>`;
     const tiles = d.collectionTiles.map(tile);
     $('#tiles').innerHTML = `<div class="collection-column">${tiles.slice(0, 2).join('')}</div><div class="collection-column">${tiles.slice(2, 4).join('')}</div>`;
     $('#latest-title').textContent = s.latest_title;
@@ -107,7 +108,7 @@
     $('#about').innerHTML = `<img class="about-bg" src="media/${esc(s.about_image)}" alt="" loading="lazy" />
       <div class="about-card"><strong>${esc(s.about_text_1)}</strong><p>${esc(s.about_text_2)}</p><a class="btn" href="informacion.html">${esc(s.about_cta)}</a></div>`;
     $('#social-title').textContent = s.social_title;
-    const item = (p) => `<a class="social-item${p.featured ? ' social-feature' : ''}" href="${esc(p.url)}" aria-label="Ver publicación en Instagram"><img src="media/${esc(p.image)}" alt="${esc(p.alt)}" loading="lazy" /></a>`;
+    const item = (p) => `<a class="social-item${p.featured ? ' social-feature' : ''}" href="${esc(instagramUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Ver publicación en Instagram"><img src="media/${esc(p.image)}" alt="${esc(p.alt)}" loading="lazy" /></a>`;
     const feat = d.socialPosts.find((p) => p.featured);
     $('#social').innerHTML = `${feat ? item(feat) : ''}<div class="social-small-grid">${d.socialPosts.filter((p) => !p.featured).map(item).join('')}</div>`;
 
@@ -121,14 +122,20 @@
   /* Catálogo con filtros reales (perros, gatos…) */
   async function catalogPage() {
     const slug = document.body.dataset.category;
-    const cat = await api(`/categories/${slug}`);
+    const url = new URLSearchParams(location.search);
+    const collectionSlug = slug === 'all' ? url.get('coleccion') : null;
+    const cat = collectionSlug ? await api(`/collections/${encodeURIComponent(collectionSlug)}`) : await api(`/categories/${slug}`);
+    if (slug === 'all') {
+      document.title = `${cat.name} | Petunia Pet Shop`;
+      $('#catalog-crumb').textContent = cat.name;
+      $('#collection-title').textContent = cat.name;
+    }
     if (cat.heroImage) {
       const hero = $('#cat-hero');
       hero.hidden = false;
       hero.innerHTML = `<img src="media/${esc(cat.heroImage)}" alt="${esc(cat.heroAlt)}" />`;
     }
     const f = cat.filters;
-    const url = new URLSearchParams(location.search);
     const sel = {
       sort: url.get('orden') || 'featured',
       type: new Set((url.get('tipo') || '').split(',').filter(Boolean)),
@@ -143,19 +150,22 @@
     if (f.types.length) html += group('Producto', 'type', checks('type', f.types.map((t) => [t.slug, t.name])), sel.type.size);
     if (f.sizes.length) html += group('Talla', 'size', checks('size', f.sizes.map((s) => [s, s])), sel.size.size);
     if (f.colors.length) html += group('Color', 'color', `<div class="filter-dots">${f.colors.map((c) => `<button type="button" data-filter="color" value="${esc(c.hex)}" title="${esc(c.name)}" aria-label="Color ${esc(c.name)}" aria-pressed="${sel.color.has(c.hex)}" style="--swatch-color: ${esc(c.hex)}"></button>`).join('')}</div>`, sel.color.size);
-    if (f.collections.length) html += group('Colección', 'collection', checks('collection', f.collections.map((c) => [c.slug, c.name])), sel.collection.size);
+    if (slug !== 'all' && f.collections.length) html += group('Colección', 'collection', checks('collection', f.collections.map((c) => [c.slug, c.name])), sel.collection.size);
     $('#filter-list').innerHTML = html;
     $('#filter-list').style.display = 'grid'; $('#filter-list').style.gap = '12px';
 
     const grid = $('#catalog-grid'), more = $('#load-more'), count = $('#result-count');
     let page = 1, pages = 1;
     const query = (p) => {
-      const q = new URLSearchParams({ category: slug, page: p, limit: 6, sort: sel.sort });
-      for (const k of ['type', 'size', 'color', 'collection']) if (sel[k].size) q.set(k, [...sel[k]].join(','));
+      const q = new URLSearchParams({ page: p, limit: 6, sort: sel.sort });
+      if (slug !== 'all') q.set('category', slug);
+      else q.set('collection', collectionSlug);
+      for (const k of ['type', 'size', 'color', 'collection']) if (slug !== 'all' && sel[k].size) q.set(k, [...sel[k]].join(','));
       return q;
     };
     const syncUrl = () => {
       const q = new URLSearchParams();
+      if (slug === 'all') q.set('coleccion', collectionSlug);
       if (sel.sort !== 'featured') q.set('orden', sel.sort);
       for (const [k, name] of [['type', 'tipo'], ['size', 'talla'], ['color', 'color'], ['collection', 'coleccion']]) if (sel[k].size) q.set(name, [...sel[k]].join(','));
       history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
@@ -166,7 +176,7 @@
       pages = r.pages;
       grid.insertAdjacentHTML('beforeend', r.items.map(cardHTML).join(''));
       count.textContent = r.total ? `${r.total} ${r.total === 1 ? 'producto' : 'productos'}` : '';
-      if (!r.total) grid.innerHTML = `<div style="grid-column:1/-1">${emptyHTML(slug === 'gatos' && !sel.type.size ? 'Pronto tendremos accesorios para gatos.' : 'No encontramos productos con esos filtros.', location.pathname, 'Quitar filtros')}</div>`;
+      if (!r.total) grid.innerHTML = `<div style="grid-column:1/-1">${emptyHTML(slug === 'gatos' && !sel.type.size ? 'Pronto tendremos accesorios para gatos.' : `No encontramos productos ${collectionSlug ? `en ${esc(cat.name)}` : 'con esos filtros'}.`, location.pathname, 'Quitar filtros')}</div>`;
       more.hidden = page >= pages;
     }
     $('#filter-list').addEventListener('change', (e) => {
@@ -438,7 +448,7 @@
   overlay.innerHTML = '<div class="overlay-backdrop" data-close></div><aside class="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title"><header class="panel-head"><h2 id="panel-title"></h2><button class="round-btn" type="button" data-close aria-label="Cerrar">&times;</button></header><div class="panel-body"></div></aside>';
   document.body.appendChild(overlay);
   const panel = $('.panel', overlay), body = $('.panel-body', overlay), titleEl = $('#panel-title');
-  let openPanel = null, lastFocus = null, chatTimer = null;
+  let openPanel = null, lastFocus = null, chatTimer = null, checkoutResume = null;
 
   function openOverlay(name) {
     lastFocus = document.activeElement;
@@ -528,7 +538,12 @@
       } else if (f.id === 'login-form' || f.id === 'register-form') {
         const r = await api(f.id === 'login-form' ? '/auth/login' : '/auth/register', { method: 'POST', body: data });
         state.user = r.user; await loadState(); toast(`¡Hola, ${r.user.name}!`);
-        if (document.body.dataset.page === 'product') { closeOverlay(); setTimeout(() => location.reload(), 150); } else renderAccount();
+        if (checkoutResume) {
+          const resume = checkoutResume;
+          checkoutResume = null;
+          closeOverlay();
+          resume();
+        } else if (document.body.dataset.page === 'product') { closeOverlay(); setTimeout(() => location.reload(), 150); } else renderAccount();
       } else if (f.id === 'chat-form') {
         const msgs = await api('/chat', { method: 'POST', body: { body: data.body } });
         f.reset(); drawChat(msgs);
@@ -564,6 +579,7 @@
     }
     titleEl.textContent = tab === 'login' ? 'Ingresar' : 'Crear cuenta';
     body.innerHTML = `<div class="tabs" role="tablist"><button type="button" role="tab" data-tab="login" aria-selected="${tab === 'login'}">Ingresar</button><button type="button" role="tab" data-tab="register" aria-selected="${tab !== 'login'}">Crear cuenta</button></div>
+      ${checkoutResume ? '<p class="muted">Para finalizar tu compra, inicia sesión o crea una cuenta.</p>' : ''}
       ${tab === 'login' ? `<form class="stack" id="login-form">
         <label class="field">Correo electrónico<input name="email" type="email" required autocomplete="email" /></label>
         <label class="field">Contraseña<input name="password" type="password" required autocomplete="current-password" /></label>
@@ -689,7 +705,14 @@
         else location.href = 'index.html';
         return;
       }
-      if (e.target.id === 'checkout-next') { step = 'details'; draw(); return; }
+      if (e.target.id === 'checkout-next') {
+        if (state.user) { step = 'details'; draw(); }
+        else {
+          checkoutResume = () => { step = 'details'; draw(); };
+          openOverlay('account');
+        }
+        return;
+      }
       const item = e.target.closest('[data-item]');
       if (!item || step !== 'review') return;
       try {
@@ -724,7 +747,12 @@
           <a class="btn" href="index.html">Seguir comprando</a>
         </div>`;
       } catch (ex) {
-        if (err) { err.textContent = ex.message; err.hidden = false; } else toast(ex.message);
+        if (ex.status === 401) {
+          state.user = null;
+          await loadState();
+          checkoutResume = () => { step = 'details'; draw(); };
+          openOverlay('account');
+        } else if (err) { err.textContent = ex.message; err.hidden = false; } else toast(ex.message);
       }
     });
 
@@ -741,23 +769,8 @@
     } catch (ex) { toast(ex.message); }
   });
 
-  /* ───────── Promociones: ofertas arriba, colecciones abajo ───────── */
-  async function promosPage() {
-    const d = await api('/promotions-page');
-    const fdate = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long' });
-    $('#promo-chips').innerHTML = d.promos.map((p) => `<li>${p.percent}% · ${esc(p.name)}${p.endsAt ? ` <span>hasta el ${fdate(p.endsAt)}</span>` : ''}</li>`).join('');
-    $('#sale-grid').innerHTML = d.sale.length ? d.sale.map(cardHTML).join('')
-      : emptyHTML('Por ahora no hay productos en oferta. ¡Vuelve pronto!', 'perros.html', 'Ver la tienda');
-    const url = (c, l) => `${encodeURIComponent(l.category)}.html?coleccion=${encodeURIComponent(c.slug)}`;
-    $('#colls-section').hidden = !d.collections.length;
-    $('#collections-grid').innerHTML = d.collections.map((c, i) => `<article class="promo-collection" style="--accent: var(${i % 2 ? '--sun' : '--purple'})">
-      <a class="promo-collection-media" href="${url(c, c.links[0])}" aria-label="Ver ${esc(c.name)}">${c.image ? `<img src="${esc(c.image)}" alt="" loading="lazy" />` : ''}</a>
-      <div class="promo-collection-body"><h3>${esc(c.name)}</h3>${c.description ? `<p>${esc(c.description)}</p>` : ''}
-        <div class="promo-links">${c.links.map((l) => `<a class="btn btn-light" href="${url(c, l)}">${esc(l.name)} (${l.count})</a>`).join('')}</div></div></article>`).join('');
-  }
-
   /* ───────── Arranque ───────── */
-  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage, checkout: checkoutPage, promos: promosPage };
+  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage, checkout: checkoutPage };
   (async () => {
     await loadState().catch(() => {});
     const run = pages[document.body.dataset.page];

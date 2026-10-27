@@ -122,6 +122,12 @@ CREATE TABLE IF NOT EXISTS products (
   created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id, active, sort_order);
+CREATE TABLE IF NOT EXISTS product_categories (
+  product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (product_id, category_id)
+);
+CREATE INDEX IF NOT EXISTS idx_product_categories_category ON product_categories(category_id, product_id);
 
 CREATE TABLE IF NOT EXISTS product_images (   -- la 1ª es la principal; la 2ª aparece en hover
   id         INTEGER PRIMARY KEY,

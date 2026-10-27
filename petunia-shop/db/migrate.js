@@ -44,6 +44,17 @@ module.exports = function migrate(db) {
   }
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      PRIMARY KEY (product_id, category_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_product_categories_category ON product_categories(category_id, product_id);
+    INSERT OR IGNORE INTO product_categories (product_id, category_id)
+      SELECT id, category_id FROM products;
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS promotions (
       id         INTEGER PRIMARY KEY,
       name       TEXT NOT NULL,
@@ -68,6 +79,8 @@ module.exports = function migrate(db) {
       position INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  db.prepare("UPDATE nav_links SET href = 'promociones.html' WHERE href = '#' AND label LIKE 'Promocion%'").run();
 
   const setting = db.prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
   for (const [k, v] of Object.entries({ ...INFO_DEFAULTS, ...PROMO_DEFAULTS })) setting.run(k, v);

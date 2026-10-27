@@ -13,8 +13,8 @@ function promoStatus(p, t = today()) {
 
 function targetIds(p) {
   if (p.scope === 'all') return db.prepare('SELECT id FROM products WHERE active = 1').all().map((r) => r.id);
-  if (p.scope === 'category') return db.prepare(`SELECT p.id FROM products p JOIN categories c ON c.id = p.category_id
-    WHERE p.active = 1 AND c.slug = ?`).all(p.scope_ref).map((r) => r.id);
+  if (p.scope === 'category') return db.prepare(`SELECT p.id FROM products p JOIN product_categories pc ON pc.product_id = p.id
+    JOIN categories c ON c.id = pc.category_id WHERE p.active = 1 AND c.slug = ?`).all(p.scope_ref).map((r) => r.id);
   if (p.scope === 'collection') return db.prepare(`SELECT p.id FROM products p JOIN collections c ON c.id = p.collection_id
     WHERE p.active = 1 AND c.slug = ?`).all(p.scope_ref).map((r) => r.id);
   return db.prepare(`SELECT pp.product_id AS id FROM promotion_products pp JOIN products p ON p.id = pp.product_id
@@ -39,4 +39,4 @@ function recomputeSales() {
   })();
 }
 
-module.exports = { recomputeSales, promoStatus, today };
+module.exports = { recomputeSales, promoStatus, targetIds, today };

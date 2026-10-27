@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('../../db');
 const { hydrate } = require('../products');
-const { rateLimit } = require('../auth');
+const { rateLimit, requireAuth } = require('../auth');
 
 const router = express.Router();
 const BASE = require('../products').BASE;
@@ -108,7 +108,7 @@ const orderLimiter = rateLimit({ windowMs: 10 * 60e3, max: 20 });
 const text = (v, max) => String(v ?? '').trim().slice(0, max);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-router.post('/orders', orderLimiter, (req, res) => {
+router.post('/orders', requireAuth, orderLimiter, (req, res) => {
   const name = text(req.body.name, 100), email = text(req.body.email, 160);
   const phone = text(req.body.phone, 40), address = text(req.body.address, 300), notes = text(req.body.notes, 500);
   if (!name || !address) return res.status(400).json({ error: 'Completa tu nombre y la dirección de entrega.' });

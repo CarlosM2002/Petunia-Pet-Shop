@@ -152,6 +152,8 @@ function seed() {
     addGatos();
     applySizes();
 
+    db.exec(`INSERT OR IGNORE INTO product_categories (product_id, category_id)
+      SELECT id, category_id FROM products`);
     db.prepare('SELECT id FROM products').all().forEach((r) => refreshSearchText(r.id));
 
     // Administrador (solo si se define en el entorno)

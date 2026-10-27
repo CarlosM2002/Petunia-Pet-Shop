@@ -75,7 +75,7 @@ function siteForLayout() {
     social: all('SELECT network, url, icon FROM social_links ORDER BY position'),
   };
 }
-/* Versión de styles.css / app.js según la fecha del archivo: así el navegador nunca se queda con una copia vieja. */
+/* Versiona los archivos estáticos para que el navegador no conserve una copia vieja. */
 const assetV = (file) => { try { return Math.round(fs.statSync(path.join(__dirname, 'public', file)).mtimeMs / 1000); } catch { return 0; } };
 
 function sendPage(res, name) {
@@ -87,7 +87,7 @@ function sendPage(res, name) {
     .replace('<!--@header-->', () => renderHeader(site, name))
     .replace('<!--@footer-->', () => renderFooter(site));
   if (name === 'admin.html') res.set({ 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-store' });
-  res.type('html').send(fillTokens(out, site.settings, faqs).replace(/(styles\.css|app\.js)\?v=\d+/g, (m, f) => `${f}?v=${assetV(f)}`));
+  res.type('html').send(fillTokens(out, site.settings, faqs).replace(/(styles\.css|app\.js|admin-panel\.js|promociones\.js)\?v=\d+/g, (m, f) => `${f}?v=${assetV(f)}`));
 }
 app.get('/', (req, res) => sendPage(res, 'index.html'));
 app.get('/admin', (req, res) => sendPage(res, 'admin.html'));

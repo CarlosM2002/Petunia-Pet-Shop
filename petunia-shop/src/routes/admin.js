@@ -50,6 +50,7 @@ router.get('/meta', (req, res) => res.json({
 
 /* ───────── Pedidos ───────── */
 const STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
+const UPDATABLE_STATUSES = STATUSES.filter((status) => status !== 'delivered');
 
 router.get('/orders', (req, res) => {
   const where = [], args = [];
@@ -68,7 +69,7 @@ router.get('/orders', (req, res) => {
 
 router.patch('/orders/:id', (req, res) => {
   const status = req.body.status;
-  if (!STATUSES.includes(status)) return bad(res, 'Estado no válido.');
+  if (!UPDATABLE_STATUSES.includes(status)) return bad(res, 'No se puede actualizar un pedido al estado recibido.');
   const order = get('SELECT id, status FROM orders WHERE id = ?', req.params.id);
   if (!order) return bad(res, 'Pedido no encontrado.', 404);
   try {
@@ -133,12 +134,17 @@ router.get('/products', (req, res) => {
   const where = [], args = [];
   const status = req.query.status || 'active';
   if (status === 'active') where.push('p.active = 1'); else if (status === 'archived') where.push('p.active = 0');
-  if (req.query.category) { where.push('cat.slug = ?'); args.push(String(req.query.category)); }
+  if (req.query.category) {
+    where.push('EXISTS (SELECT 1 FROM product_categories pc JOIN categories filtered_cat ON filtered_cat.id = pc.category_id WHERE pc.product_id = p.id AND filtered_cat.slug = ?)');
+    args.push(String(req.query.category));
+  }
   const q = text(req.query.q, 80).toLowerCase();
   if (q) { where.push('(lower(p.name) LIKE ? OR lower(p.subtitle) LIKE ?)'); args.push(`%${q}%`, `%${q}%`); }
   const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
   res.json(all(`SELECT p.id, p.slug, p.name, p.subtitle, p.price_cents AS priceCents, p.sale_price_cents AS salePriceCents, p.stock, p.active,
-      p.is_new AS isNew, p.is_bestseller AS bestseller, p.is_latest AS latest, cat.slug AS category, cat.name AS categoryName,
+      p.is_new AS isNew, p.is_bestseller AS bestseller, p.is_latest AS latest,
+      CASE WHEN (SELECT COUNT(*) FROM product_categories pc WHERE pc.product_id = p.id) > 1 THEN 'ambos' ELSE cat.slug END AS category,
+      CASE WHEN (SELECT COUNT(*) FROM product_categories pc WHERE pc.product_id = p.id) > 1 THEN 'Ambos' ELSE cat.name END AS categoryName,
       t.name AS type, c.name AS collection,
       (SELECT file FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1) AS image
     FROM products p JOIN categories cat ON cat.id = p.category_id
@@ -151,11 +157,13 @@ function productDetail(id) {
     JOIN categories cat ON cat.id = p.category_id LEFT JOIN product_types t ON t.id = p.type_id
     LEFT JOIN collections c ON c.id = p.collection_id WHERE p.id = ?`, id);
   if (!p) return null;
+  const categories = all(`SELECT c.slug FROM product_categories pc JOIN categories c ON c.id = pc.category_id
+    WHERE pc.product_id = ? ORDER BY c.id`, id).map((c) => c.slug);
   return {
     id: p.id, slug: p.slug, name: p.name, subtitle: p.subtitle || '', description: p.description || '',
     priceCents: p.price_cents, salePriceCents: p.sale_price_cents, stock: p.stock, active: !!p.active,
     isNew: !!p.is_new, bestseller: !!p.is_bestseller, latest: !!p.is_latest,
-    category: p.category_slug, type: p.type_slug || '', collection: p.collection_slug || '',
+    category: categories.length > 1 ? 'ambos' : p.category_slug, categories, type: p.type_slug || '', collection: p.collection_slug || '',
     images: all('SELECT file FROM product_images WHERE product_id = ? ORDER BY position', id).map((r) => r.file),
     colors: all('SELECT id, name, hex FROM product_colors WHERE product_id = ? ORDER BY position', id),
     sizes: all('SELECT s.label FROM product_sizes ps JOIN sizes s ON s.id = ps.size_id WHERE ps.product_id = ? ORDER BY s.position', id).map((r) => r.label),
@@ -174,8 +182,11 @@ function validateProduct(b, creating) {
   if (!(price >= 0) || price > 100000) return { error: 'El precio no es válido.' };
   const stock = int(b.stock, 0);
   if (stock < 0 || stock > 100000) return { error: 'El stock no es válido.' };
-  const category_id = lookupId('categories', b.category);
-  if (!category_id) return { error: 'Elige una categoría.' };
+  const category_ids = b.category === 'ambos'
+    ? ['perros', 'gatos'].map((slug) => lookupId('categories', slug))
+    : [lookupId('categories', b.category)];
+  if (category_ids.some((id) => !id)) return { error: 'Elige una categoría válida.' };
+  const category_id = category_ids[0];
   const type_id = lookupId('product_types', b.type);
   if (b.type && !type_id) return { error: 'Tipo de producto no válido.' };
   const collection_id = lookupId('collections', b.collection);
@@ -193,7 +204,7 @@ function validateProduct(b, creating) {
 
   return { data: {
     name, subtitle: text(b.subtitle, 160), description: text(b.description, 2000), price_cents: Math.round(price * 100), stock,
-    category_id, type_id, collection_id, is_new: +!!b.isNew, is_bestseller: +!!b.bestseller, is_latest: +!!b.latest,
+    category_id, category_ids, type_id, collection_id, is_new: +!!b.isNew, is_bestseller: +!!b.bestseller, is_latest: +!!b.latest,
     active: b.active === undefined ? 1 : +!!b.active, colors, images, sizeIds: sizeRows.map((r) => r.id), sections } };
 }
 
@@ -202,6 +213,9 @@ function saveProduct(id, d) {
     run(`UPDATE products SET name=?, subtitle=?, description=?, price_cents=?, stock=?, category_id=?, type_id=?, collection_id=?,
       is_new=?, is_bestseller=?, is_latest=?, active=? WHERE id=?`, d.name, d.subtitle, d.description, d.price_cents, d.stock,
       d.category_id, d.type_id, d.collection_id, d.is_new, d.is_bestseller, d.is_latest, d.active, id);
+
+    run('DELETE FROM product_categories WHERE product_id = ?', id);
+    d.category_ids.forEach((categoryId) => run('INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)', id, categoryId));
 
     run('DELETE FROM product_images WHERE product_id = ?', id);
     d.images.forEach((f, i) => run('INSERT INTO product_images (product_id,file,alt,position) VALUES (?,?,?,?)', id, f, d.name, i));
@@ -278,6 +292,19 @@ const mediaFile = (f) => {                       // nombre de imagen válido y e
   const name = path.basename(String(f || ''));
   return name && /^[\w.\-]+\.(jpe?g|png|webp|gif)$/i.test(name) && fs.existsSync(path.join(MEDIA_DIR, name)) ? name : null;
 };
+const productIdsOf = (v) => [...new Set((Array.isArray(v) ? v : []).map((x) => int(x)))].filter((id) => get('SELECT 1 FROM products WHERE id = ?', id));
+function setCollectionProducts(collectionId, ids) {          // deja en la colección exactamente estos productos
+  db.transaction(() => {
+    run('UPDATE products SET collection_id = NULL WHERE collection_id = ?', collectionId);
+    ids.forEach((pid) => run('UPDATE products SET collection_id = ? WHERE id = ?', collectionId, pid));
+  })();
+  recomputeSales();
+}
+router.get('/collections/:id', (req, res) => {
+  const c = get('SELECT id, slug, name, description, image FROM collections WHERE id = ?', int(req.params.id));
+  if (!c) return bad(res, 'Colección no encontrada.', 404);
+  res.json({ ...c, productIds: all('SELECT id FROM products WHERE collection_id = ?', c.id).map((r) => r.id) });
+});
 router.post('/collections', (req, res) => {
   const name = text(req.body.name, 80);
   if (!name) return bad(res, 'Escribe el nombre de la colección.');
@@ -285,6 +312,7 @@ router.post('/collections', (req, res) => {
   const slug = uniqueSlug('collections', slugify(name));
   const id = run('INSERT INTO collections (slug,name,description,image,position) VALUES (?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM collections))',
     slug, name, text(req.body.description, 300), mediaFile(req.body.image)).lastInsertRowid;
+  if (Array.isArray(req.body.productIds)) setCollectionProducts(Number(id), productIdsOf(req.body.productIds));
   res.status(201).json({ id: Number(id), slug });
 });
 router.put('/collections/:id', (req, res) => {
@@ -292,6 +320,7 @@ router.put('/collections/:id', (req, res) => {
   if (!name) return bad(res, 'Escribe el nombre de la colección.');
   if (req.body.image && !mediaFile(req.body.image)) return bad(res, 'La imagen no existe en public/media.');
   run('UPDATE collections SET name = ?, description = ?, image = ? WHERE id = ?', name, text(req.body.description, 300), mediaFile(req.body.image), int(req.params.id));
+  if (Array.isArray(req.body.productIds)) setCollectionProducts(int(req.params.id), productIdsOf(req.body.productIds));
   res.json({ ok: true });
 });
 router.delete('/collections/:id', (req, res) => {
