@@ -592,7 +592,7 @@
       const orders = await api('/orders').catch(() => []);
       if (openPanel !== 'account') return;
       body.innerHTML = `<p class="muted">${esc(state.user.email)}</p><h3 class="panel-sub">Mis pedidos</h3>
-        ${orders.length ? orders.map((o) => `<article class="order-card"><header><strong>${esc(o.code)}</strong><span class="status status-${o.status}">${{ pending: 'Pendiente', paid: 'Pagado', shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado' }[o.status]}</span></header>
+        ${orders.length ? orders.map((o) => `<article class="order-card"><header><strong>${esc(o.code)}</strong><span class="status status-${o.status}">${{ pending: 'Pendiente', paid: 'Pagado', shipped: 'Enviado', delivered: 'Entregado al cliente', cancelled: 'Cancelado por la tienda' }[o.status]}</span></header>
           <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(cap(i.name))}${i.color ? ` (${esc(i.color)})` : ''}</li>`).join('')}</ul><footer>${new Date(o.createdAt).toLocaleDateString('es')} · ${money(o.total)}</footer></article>`).join('') : '<p class="muted">Todavía no has hecho pedidos.</p>'}
         <button class="btn btn-light" type="button" id="logout">Cerrar sesión</button>`;
       return;

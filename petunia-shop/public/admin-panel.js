@@ -28,7 +28,7 @@
   }
   const money = (c) => '$' + (c / 100).toFixed(2);
   const fdate = (iso) => (iso ? new Date(iso).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
-  const STATUS = { pending: 'Pendiente', paid: 'En proceso', shipped: 'Enviado', delivered: 'Recibido', cancelled: 'Cancelado' };
+  const STATUS = { pending: 'Pendiente', paid: 'En proceso', shipped: 'Enviado', cancelled: 'Cancelado por la tienda' };
   const PSTATUS = { activa: ['Activa', 'ok'], programada: ['Programada', 'warn'], vencida: ['Vencida', 'bad'], pausada: ['Pausada', ''] };
   const SCOPE = { all: 'Todo el catálogo', category: 'Una categoría', collection: 'Una colección', products: 'Productos elegidos' };
 
@@ -82,7 +82,7 @@
   $('#gate-logout').addEventListener('click', logout);
 
   /* ───────── Navegación ───────── */
-  const VIEWS = { resumen: vResumen, pedidos: vPedidos, productos: vProductos, clientes: vClientes, colecciones: vColecciones, promociones: vPromociones, ayuda: vAyuda };
+  const VIEWS = { resumen: vResumen, pedidos: vPedidos, productos: vProductos, clientes: vClientes, promociones: vPromociones, ayuda: vAyuda };
   async function go(name) {
     if (!VIEWS[name]) name = 'resumen';
     location.hash = name;
@@ -102,7 +102,6 @@
         <div class="card stat"><strong>${n('pending')}</strong><span>Pedidos pendientes</span></div>
         <div class="card stat"><strong>${n('paid')}</strong><span>En proceso</span></div>
         <div class="card stat"><strong>${n('shipped')}</strong><span>Enviados</span></div>
-        <div class="card stat"><strong>${n('delivered')}</strong><span>Recibidos</span></div>
         <div class="card stat"><strong>${money(s.revenueCents)}</strong><span>Ventas (sin cancelados)</span></div>
         <div class="card stat"><strong>${s.users}</strong><span>Usuarios registrados</span></div>
         <div class="card stat"><strong>${s.products}</strong><span>Productos activos</span></div>
@@ -126,7 +125,9 @@
       <div class="stack">${d.orders.map((o) => `
         <article class="card order">
           <header><div><strong>${esc(o.code)}</strong> <span class="muted">· ${fdate(o.createdAt)}</span></div>
-            <select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${opts(o.status)}</select></header>
+            ${o.status === 'delivered'
+              ? '<span class="badge">Entregado al cliente (registro anterior)</span>'
+              : `<select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${opts(o.status)}</select>`}</header>
           <div class="cols">
             <div><b>${esc(o.customerName)}</b><br>${esc(o.email)}${o.phone ? `<br>${esc(o.phone)}` : ''}${o.userId ? '<br><span class="badge ok">Usuario registrado</span>' : ''}</div>
             <div>${esc(o.address)}${o.notes ? `<br><em class="muted">${esc(o.notes)}</em>` : ''}</div>
@@ -144,7 +145,7 @@
     if (!sel) return;
     await api('/admin/orders/' + sel.dataset.order, { method: 'PATCH', body: { status: sel.value } }).catch((err) => { go('pedidos'); throw err; });
     sel.className = 'status s-' + sel.value;
-    toast('Estado actualizado: ' + STATUS[sel.value]);
+    toast('Pedido actualizado: ' + STATUS[sel.value]);
   }));
 
   /* ───────── Productos ───────── */
@@ -267,15 +268,25 @@
   }
 
   /* ───────── Colecciones ───────── */
+  const promotionTabs = (active) => `<div class="tabs" aria-label="Administrar promociones">
+    <button type="button" class="${active === 'discounts' ? 'on' : ''}" id="show-discounts" aria-pressed="${active === 'discounts'}">Descuentos</button>
+    <button type="button" class="${active === 'collections' ? 'on' : ''}" id="show-collections" aria-pressed="${active === 'collections'}">Colecciones</button>
+  </div>`;
+  function bindPromotionTabs() {
+    $('#show-discounts').onclick = () => vPromociones();
+    $('#show-collections').onclick = () => vColecciones();
+  }
   const move = (ids, i, d) => { const a = [...ids]; [a[i], a[i + d]] = [a[i + d], a[i]]; return a; };
   async function vColecciones() {
     const list = await api('/admin/collections');
     const ids = list.map((c) => c.id);
-    view.innerHTML = `<h1>Colecciones</h1><p class="muted">El orden de esta lista es el orden en que aparecen en los filtros de la tienda.</p>
+    view.innerHTML = `<h1>Promociones</h1>${promotionTabs('collections')}
+      <h2>Colecciones</h2><p class="muted">Agrupa productos para mostrarlos juntos en los filtros de la tienda.</p>
       <div class="bar"><button class="btn" id="c-new">+ Nueva colección</button></div>
       <div class="stack">${list.map((c, i) => `<div class="row"><div class="grow"><strong>${esc(c.name)}</strong> <span class="badge">${c.products} productos</span><br><span class="muted">${esc(c.description || '')}</span></div>
         <div class="acts"><button class="btn ghost sm" data-cup="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button class="btn ghost sm" data-cdown="${i}" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>
         <button class="btn sm" data-cedit="${c.id}">Editar</button><button class="btn danger sm" data-cdel="${c.id}">Eliminar</button></div></div>`).join('') || '<p class="muted">No hay colecciones.</p>'}</div>`;
+    bindPromotionTabs();
     const reorderTo = guard(async (arr) => { await api('/admin/collections/reorder', { method: 'POST', body: { ids: arr } }); META = await api('/admin/meta'); vColecciones(); });
     view.querySelectorAll('[data-cup]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.cup, -1)); });
     view.querySelectorAll('[data-cdown]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.cdown, 1)); });
@@ -298,12 +309,14 @@
     const list = await api('/admin/promotions');
     const ids = list.map((p) => p.id);
     const range = (p) => (p.startsAt || p.endsAt ? `${p.startsAt || 'ya'} → ${p.endsAt || 'sin fin'}` : 'Sin fechas');
-    view.innerHTML = `<h1>Promociones</h1><p class="muted">Descuento en porcentaje que se aplica solo a los precios de la tienda y de la bolsa. Si un producto entra en varias promociones, gana la que esté más arriba en la lista.</p>
+    view.innerHTML = `<h1>Promociones</h1>${promotionTabs('discounts')}
+      <p class="muted">Los descuentos en porcentaje se aplican a los precios de la tienda y de la bolsa. Si un producto entra en varias promociones, gana la que esté más arriba en la lista.</p>
       <div class="bar"><button class="btn" id="pr-new">+ Nueva promoción</button></div>
       <div class="stack">${list.map((p, i) => { const [lab, cls] = PSTATUS[p.status]; return `<div class="row"><div class="grow"><strong>${esc(p.name)}</strong> <span class="badge ${cls}">${lab}</span><br>
         <span class="muted">${p.percent}% · ${SCOPE[p.scope]}${p.scope === 'products' ? ` (${p.productIds.length})` : p.scopeRef ? `: ${esc(p.scopeRef)}` : ''} · ${esc(range(p))}</span></div>
         <div class="acts"><button class="btn ghost sm" data-pup="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button class="btn ghost sm" data-pdown="${i}" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>
         <button class="btn ghost sm" data-ptoggle="${p.id}:${p.active ? 0 : 1}">${p.active ? 'Pausar' : 'Activar'}</button><button class="btn sm" data-pedit="${p.id}">Editar</button><button class="btn danger sm" data-pdel="${p.id}">Eliminar</button></div></div>`; }).join('') || '<p class="muted">Aún no hay promociones.</p>'}</div>`;
+    bindPromotionTabs();
     const reorderTo = guard(async (arr) => { await api('/admin/promotions/reorder', { method: 'POST', body: { ids: arr } }); vPromociones(); });
     view.querySelectorAll('[data-pup]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.pup, -1)); });
     view.querySelectorAll('[data-pdown]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.pdown, 1)); });

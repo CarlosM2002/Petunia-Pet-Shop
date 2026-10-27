@@ -49,7 +49,7 @@ router.get('/meta', (req, res) => res.json({
 }));
 
 /* ───────── Pedidos ───────── */
-const STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
+const STATUSES = ['pending', 'paid', 'shipped', 'cancelled'];
 
 router.get('/orders', (req, res) => {
   const where = [], args = [];
