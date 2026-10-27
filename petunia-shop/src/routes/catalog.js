@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../../db');
 const { hydrate, listProducts, getProductRow, normalize } = require('../products');
+const { promoStatus } = require('../promotions');
 
 const router = express.Router();
 const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -73,6 +74,28 @@ router.get('/products', (req, res) => {
     db.prepare('INSERT INTO search_logs (term, results) VALUES (?, ?)').run(term.slice(0, 80), result.total);
   }
   res.json(result);
+});
+
+/* Página de promociones: productos en oferta arriba, colecciones abajo (todo editable desde el admin). */
+router.get('/promotions-page', (req, res) => {
+  const rows = db.prepare(`SELECT p.*, t.slug AS type_slug, t.name AS type_name, c.slug AS collection_slug, c.name AS collection_name, cat.slug AS category_slug
+    FROM products p JOIN categories cat ON cat.id = p.category_id LEFT JOIN product_types t ON t.id = p.type_id
+    LEFT JOIN collections c ON c.id = p.collection_id WHERE p.active = 1 AND p.sale_price_cents IS NOT NULL ORDER BY p.sort_order`).all();
+  const collections = all('SELECT id, slug, name, description, image FROM collections ORDER BY position, id').map((c) => {
+    const links = all(`SELECT cat.slug AS category, cat.name, COUNT(*) AS count FROM products p JOIN categories cat ON cat.id = p.category_id
+      WHERE p.active = 1 AND p.collection_id = ? GROUP BY cat.id ORDER BY cat.id`, c.id);
+    const img = c.image || db.prepare(`SELECT file FROM product_images WHERE product_id IN
+      (SELECT id FROM products WHERE active = 1 AND collection_id = ?) ORDER BY product_id, position LIMIT 1`).get(c.id)?.file || null;
+    return { slug: c.slug, name: c.name, description: c.description, image: img && `media/${img}`, links };
+  }).filter((c) => c.links.length);
+  const s = siteData().settings;
+  res.json({
+    settings: { promo_title: s.promo_title, promo_intro: s.promo_intro, promo_sale_title: s.promo_sale_title, promo_collections_title: s.promo_collections_title },
+    promos: all('SELECT name, percent, scope, starts_at, ends_at, active FROM promotions ORDER BY position, id')
+      .filter((p) => promoStatus(p) === 'activa').map((p) => ({ name: p.name, percent: p.percent, endsAt: p.ends_at || null })),
+    sale: hydrate(rows, req.owner),
+    collections,
+  });
 });
 
 router.get('/search/popular', (req, res) =>

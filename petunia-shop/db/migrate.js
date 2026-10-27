@@ -15,6 +15,13 @@ const INFO_DEFAULTS = {
   info_cta_title: '¿Listos para encontrar su próximo favorito?',
 };
 
+const PROMO_DEFAULTS = {
+  promo_title: 'Promociones',
+  promo_intro: 'Aprovecha nuestras ofertas y descubre las colecciones de Petunia.',
+  promo_sale_title: 'En oferta',
+  promo_collections_title: 'Colecciones',
+};
+
 const FAQ_DEFAULTS = [
   ['¿Qué es Petunia Pet Shop?', 'Somos una tienda de Ciudad de Panamá especializada en accesorios para mascotas. Estamos aquí desde 2017 ofreciendo productos y colecciones para hacer más especiales sus días.'],
   ['¿Qué tipo de productos puedo encontrar?', 'Tenemos accesorios como collares, pañoletas, moños, placas y otros detalles de nuestras colecciones. La disponibilidad puede variar; revisa cada ficha para ver sus opciones, precio y existencias actuales.'],
@@ -30,14 +37,11 @@ module.exports = function migrate(db) {
 
   if (!cols('products').includes('sale_price_cents'))
     db.exec('ALTER TABLE products ADD COLUMN sale_price_cents INTEGER');          // precio con promoción (calculado)
+  if (!cols('collections').includes('image')) db.exec('ALTER TABLE collections ADD COLUMN image TEXT');   // portada de la colección (opcional)
   if (!cols('collections').includes('position')) {
     db.exec('ALTER TABLE collections ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
     db.exec('UPDATE collections SET position = id');
   }
-
-  db.prepare(`UPDATE categories SET hero_image = ?, hero_alt = ?
-    WHERE slug = 'gatos' AND (hero_image IS NULL OR hero_image = '')`)
-    .run('cats-hero.png', 'Colección felina de Petunia Pet Shop');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS promotions (
@@ -66,7 +70,7 @@ module.exports = function migrate(db) {
   `);
 
   const setting = db.prepare('INSERT OR IGNORE INTO site_settings (key, value) VALUES (?, ?)');
-  for (const [k, v] of Object.entries(INFO_DEFAULTS)) setting.run(k, v);
+  for (const [k, v] of Object.entries({ ...INFO_DEFAULTS, ...PROMO_DEFAULTS })) setting.run(k, v);
 
   if (db.prepare('SELECT COUNT(*) n FROM faqs').get().n === 0) {
     const ins = db.prepare('INSERT INTO faqs (question, answer, position) VALUES (?, ?, ?)');
@@ -74,3 +78,4 @@ module.exports = function migrate(db) {
   }
 };
 module.exports.INFO_KEYS = Object.keys(INFO_DEFAULTS);
+module.exports.PROMO_KEYS = Object.keys(PROMO_DEFAULTS);

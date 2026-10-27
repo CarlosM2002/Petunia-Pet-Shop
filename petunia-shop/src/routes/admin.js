@@ -7,7 +7,7 @@ const db = require('../../db');
 const { requireAdmin } = require('../auth');
 const { refreshSearchText } = require('../products');
 const { recomputeSales, promoStatus } = require('../promotions');
-const { INFO_KEYS } = require('../../db/migrate');
+const { INFO_KEYS, PROMO_KEYS } = require('../../db/migrate');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -49,7 +49,7 @@ router.get('/meta', (req, res) => res.json({
 }));
 
 /* ───────── Pedidos ───────── */
-const STATUSES = ['pending', 'paid', 'shipped', 'cancelled'];
+const STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
 
 router.get('/orders', (req, res) => {
   const where = [], args = [];
@@ -266,7 +266,7 @@ router.delete('/products/:id', (req, res) => {
 });
 
 /* ───────── Colecciones ───────── */
-router.get('/collections', (req, res) => res.json(all(`SELECT c.id, c.slug, c.name, c.description, c.position,
+router.get('/collections', (req, res) => res.json(all(`SELECT c.id, c.slug, c.name, c.description, c.image, c.position,
   (SELECT COUNT(*) FROM products p WHERE p.collection_id = c.id AND p.active = 1) AS products
   FROM collections c ORDER BY c.position, c.id`)));
 
@@ -274,18 +274,24 @@ router.post('/collections/reorder', (req, res) => {
   if (!Array.isArray(req.body.ids)) return bad(res, 'Orden no válido.');
   reorder('collections', req.body.ids); res.json({ ok: true });
 });
+const mediaFile = (f) => {                       // nombre de imagen válido y existente, o null
+  const name = path.basename(String(f || ''));
+  return name && /^[\w.\-]+\.(jpe?g|png|webp|gif)$/i.test(name) && fs.existsSync(path.join(MEDIA_DIR, name)) ? name : null;
+};
 router.post('/collections', (req, res) => {
   const name = text(req.body.name, 80);
   if (!name) return bad(res, 'Escribe el nombre de la colección.');
+  if (req.body.image && !mediaFile(req.body.image)) return bad(res, 'La imagen no existe en public/media.');
   const slug = uniqueSlug('collections', slugify(name));
-  const id = run('INSERT INTO collections (slug,name,description,position) VALUES (?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM collections))',
-    slug, name, text(req.body.description, 300)).lastInsertRowid;
+  const id = run('INSERT INTO collections (slug,name,description,image,position) VALUES (?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM collections))',
+    slug, name, text(req.body.description, 300), mediaFile(req.body.image)).lastInsertRowid;
   res.status(201).json({ id: Number(id), slug });
 });
 router.put('/collections/:id', (req, res) => {
   const name = text(req.body.name, 80);
   if (!name) return bad(res, 'Escribe el nombre de la colección.');
-  run('UPDATE collections SET name = ?, description = ? WHERE id = ?', name, text(req.body.description, 300), int(req.params.id));
+  if (req.body.image && !mediaFile(req.body.image)) return bad(res, 'La imagen no existe en public/media.');
+  run('UPDATE collections SET name = ?, description = ?, image = ? WHERE id = ?', name, text(req.body.description, 300), mediaFile(req.body.image), int(req.params.id));
   res.json({ ok: true });
 });
 router.delete('/collections/:id', (req, res) => {
@@ -356,6 +362,15 @@ router.patch('/promotions/:id', (req, res) => {
   recomputeSales(); res.json({ ok: true });
 });
 router.delete('/promotions/:id', (req, res) => { run('DELETE FROM promotions WHERE id = ?', int(req.params.id)); recomputeSales(); res.json({ ok: true }); });
+
+router.get('/promo-page', (req, res) => res.json(Object.fromEntries(all('SELECT key, value FROM site_settings').filter((r) => PROMO_KEYS.includes(r.key)).map((r) => [r.key, r.value]))));
+router.put('/promo-page', (req, res) => {
+  db.transaction(() => {
+    for (const k of PROMO_KEYS) if (typeof req.body[k] === 'string')
+      run('INSERT INTO site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, text(req.body[k], 500));
+  })();
+  res.json({ ok: true });
+});
 
 /* ───────── Página de ayuda / información ───────── */
 router.get('/help', (req, res) => res.json({

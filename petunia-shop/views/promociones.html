@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Ofertas y colecciones de Petunia Pet Shop." />
+    <title>{{s:promo_title}} | Petunia Pet Shop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=1" />
+  </head>
+  <body data-page="promos">
+<!--@header-->
+    <main class="promos-page">
+      <section class="promo-hero" aria-labelledby="promo-title">
+        <div class="container">
+          <h1 id="promo-title">{{s:promo_title}}</h1>
+          <p>{{s:promo_intro}}</p>
+          <ul class="promo-chips" id="promo-chips"></ul>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="sale-title">
+        <div class="container">
+          <div class="section-head"><h2 class="section-title" id="sale-title">{{s:promo_sale_title}}</h2></div>
+          <div class="product-grid" id="sale-grid" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="section section-tint" id="colls-section" aria-labelledby="colls-title" hidden>
+        <div class="container">
+          <div class="section-head"><h2 class="section-title" id="colls-title">{{s:promo_collections_title}}</h2></div>
+          <div class="promo-collections" id="collections-grid"></div>
+        </div>
+      </section>
+    </main>
+<!--@footer-->
+    <script src="app.js?v=1"></script>
+  </body>
+</html>

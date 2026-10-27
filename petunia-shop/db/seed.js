@@ -44,7 +44,7 @@ function seed() {
     for (const [k, v] of Object.entries(settings)) set(k, v);
 
     const nav = ins('INSERT INTO nav_links (label,href,position) VALUES (?,?,?)');
-    [['Home','index.html'],['Gatos','gatos.html'],['Perros','perros.html'],['Promociones','#'],['Información','informacion.html']]
+    [['Home','index.html'],['Gatos','gatos.html'],['Perros','perros.html'],['Promociones','promociones.html'],['Información','informacion.html']]
       .forEach(([l,h],i) => nav(l,h,i));
 
     const perk = ins('INSERT INTO perks (text,position) VALUES (?,?)');
@@ -77,7 +77,7 @@ function seed() {
     // ── Catálogo
     const cat = ins('INSERT INTO categories (slug,name,hero_image,hero_alt) VALUES (?,?,?,?)');
     const perros = cat('perros','Perros','dogs-hero.png','Colección canina de Petunia Pet Shop');
-    const gatos  = cat('gatos','Gatos','cats-hero.png','Colección felina de Petunia Pet Shop');
+    const gatos  = cat('gatos','Gatos',null,null);
 
     const coll = ins('INSERT INTO collections (slug,name,description) VALUES (?,?,?)');
     const navidena = coll('navidena','Navideña','Accesorios de la colección navideña');
