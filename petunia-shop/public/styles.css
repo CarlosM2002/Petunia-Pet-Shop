@@ -1323,6 +1323,10 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .stack { display: grid; gap: 16px; }
 .field { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.input-feedback { color: #a32626; font-size: 12px; font-weight: 600; }
+[aria-invalid="true"] { border-color: #c0392b !important; }
+.newsletter form { position: relative; margin-bottom: 1.5rem; }
+.newsletter .input-feedback { position: absolute; top: calc(100% + 4px); left: 16px; }
 .field input, .field textarea, .review-form textarea, .chat-form input {
   width: 100%; padding: 12px 14px; border: var(--line); border-radius: 14px; background: #fff; font-weight: 500; resize: vertical;
   transition: box-shadow 0.2s, background 0.2s;

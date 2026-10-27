@@ -7,6 +7,31 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => '$' + (Number.isInteger(n) ? n : n.toFixed(2));
   const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+  const INPUT_RULES = {
+    name: { pattern: /^[\p{L}\p{M} .'\u2019-]*$/u, message: 'Usa letras, espacios, apóstrofos, puntos o guiones.' },
+    email: { pattern: /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~@-]*$/, message: 'El correo no debe llevar espacios ni caracteres no válidos.' },
+    phone: { pattern: /^[0-9+() .-]*$/, message: 'Usa números y los símbolos + ( ) - .' },
+  };
+  let feedbackId = 0;
+  document.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-validate]');
+    const rule = input && INPUT_RULES[input.dataset.validate];
+    if (!rule) return;
+    let feedback = input.nextElementSibling;
+    if (!feedback?.classList.contains('input-feedback')) {
+      feedback = document.createElement('small');
+      feedback.className = 'input-feedback';
+      feedback.id = `input-feedback-${++feedbackId}`;
+      feedback.setAttribute('aria-live', 'polite');
+      input.after(feedback);
+      input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), feedback.id].filter(Boolean).join(' '));
+    }
+    const invalid = !rule.pattern.test(input.value);
+    input.setCustomValidity(invalid ? rule.message : '');
+    input.setAttribute('aria-invalid', String(invalid));
+    feedback.textContent = invalid ? rule.message : '';
+    feedback.hidden = !invalid;
+  });
   const instagramUrl = 'https://www.instagram.com/petuniaspetshop?utm_source=ig_web_button_share_sheet&xtok=ZDNlZDc0MzIxNw==';
 
   async function api(path, { method = 'GET', body } = {}) {
@@ -313,6 +338,7 @@
           <label for="plate-name-input">Nombre de tu mascota</label>
           <input id="plate-name-input" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Ej. Petunia" />
           <small id="plate-count" aria-live="polite">0/12</small>
+          <small id="plate-name-feedback" class="input-feedback" role="status" aria-live="polite" hidden>Usa letras, números, espacios, apóstrofos, puntos o guiones.</small>
         </div>
         <div class="plate-field">
           <span class="plate-label">Color: <b id="plate-color-name"></b></span>
@@ -345,7 +371,16 @@
       drawName();
     };
     sw.onclick = (e) => { const b = e.target.closest('button[data-color]'); if (!b) return; selected = colors.find((c) => c.id === Number(b.dataset.color)); drawColor(); };
-    input.oninput = () => { input.value = input.value.replace(/[^\p{L}\p{N} '.\-]/gu, ''); drawName(); };
+    input.oninput = () => {
+      const invalid = /[^\p{L}\p{M}\p{N} '\u2019.\-]/u.test(input.value);
+      const feedback = $('#plate-name-feedback', dlg);
+      const message = feedback.textContent;
+      input.setCustomValidity(invalid ? message : '');
+      input.setAttribute('aria-invalid', String(invalid));
+      feedback.hidden = !invalid;
+      $('#plate-apply', dlg).disabled = invalid;
+      drawName();
+    };
     dlg.onclick = (e) => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.close(); };
     $('#plate-apply', dlg).onclick = () => { onApply(selected.id); dlg.close(); toast(`Color ${selected.name.toLowerCase()} seleccionado`); };
 
@@ -363,7 +398,7 @@
       ? `<form class="review-form" id="review-form">
            <h3>Deja tu opinión</h3>
            <div class="star-input" role="radiogroup" aria-label="Calificación">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="rating" id="r${n}" value="${n}" ${n === 5 ? 'checked' : ''} /><label for="r${n}" title="${n} ${n === 1 ? 'estrella' : 'estrellas'}">★</label>`).join('')}</div>
-           <textarea name="body" rows="3" maxlength="1000" placeholder="Cuéntanos cómo le quedó a tu mascota" required></textarea>
+           <textarea name="body" rows="3" maxlength="1000" placeholder="Ej. Le quedó perfecto y el material es muy suave." required></textarea>
            <p class="form-error" role="alert" hidden></p>
            <button class="btn" type="submit">Publicar opinión</button>
          </form>`
@@ -581,13 +616,13 @@
     body.innerHTML = `<div class="tabs" role="tablist"><button type="button" role="tab" data-tab="login" aria-selected="${tab === 'login'}">Ingresar</button><button type="button" role="tab" data-tab="register" aria-selected="${tab !== 'login'}">Crear cuenta</button></div>
       ${checkoutResume ? '<p class="muted">Para finalizar tu compra, inicia sesión o crea una cuenta.</p>' : ''}
       ${tab === 'login' ? `<form class="stack" id="login-form">
-        <label class="field">Correo electrónico<input name="email" type="email" required autocomplete="email" /></label>
-        <label class="field">Contraseña<input name="password" type="password" required autocomplete="current-password" /></label>
+        <label class="field">Correo electrónico<input name="email" type="email" data-validate="email" placeholder="Ej. john@correo.com" required autocomplete="email" /></label>
+        <label class="field">Contraseña<input name="password" type="password" placeholder="Escribe tu contraseña" required autocomplete="current-password" /></label>
         <p class="form-error" role="alert" hidden></p><button class="btn" type="submit">Ingresar</button></form>`
       : `<form class="stack" id="register-form">
-        <label class="field">Nombre<input name="name" required maxlength="80" autocomplete="name" /></label>
-        <label class="field">Correo electrónico<input name="email" type="email" required autocomplete="email" /></label>
-        <label class="field">Contraseña (mínimo 8 caracteres)<input name="password" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <label class="field">Nombre<input name="name" data-validate="name" placeholder="Ej. John Doe" required maxlength="80" autocomplete="name" /></label>
+        <label class="field">Correo electrónico<input name="email" type="email" data-validate="email" placeholder="Ej. john@correo.com" required autocomplete="email" /></label>
+        <label class="field">Contraseña (mínimo 8 caracteres)<input name="password" type="password" placeholder="Mínimo 8 caracteres" required minlength="8" autocomplete="new-password" /></label>
         <p class="form-error" role="alert" hidden></p><button class="btn" type="submit">Crear cuenta</button></form>`}
       <p class="muted small">Tu bolsa y tus favoritos se guardan en tu cuenta.</p>`;
   }
@@ -603,7 +638,7 @@
   }
   async function renderChat() {
     titleEl.textContent = 'Chat con Petunia';
-    body.innerHTML = '<div class="chat-log" aria-live="polite"></div><form class="chat-form" id="chat-form"><input name="body" maxlength="1000" placeholder="Escribe tu mensaje" required autocomplete="off" aria-label="Mensaje" /><button class="btn btn-small" type="submit">Enviar</button></form><p class="form-error" role="alert" hidden></p>';
+    body.innerHTML = '<div class="chat-log" aria-live="polite"></div><form class="chat-form" id="chat-form"><input name="body" maxlength="1000" placeholder="Ej. ¿Tienen collares para gatos?" required autocomplete="off" aria-label="Mensaje" /><button class="btn btn-small" type="submit">Enviar</button></form><p class="form-error" role="alert" hidden></p>';
     const load = async () => { const c = await api('/chat'); if (openPanel === 'chat') drawChat(c.messages, c.greeting); };
     await load();
     chatTimer = setInterval(load, 15000);
@@ -643,11 +678,11 @@
       const u = state.user || {};
       const form = step === 'details' ? `<form class="stack" id="checkout-form">
           <h2 id="delivery-title">Datos de entrega</h2>
-          <label class="field">Nombre<input name="name" required maxlength="100" value="${esc(u.name || '')}" autocomplete="name" /></label>
-          <label class="field">Correo electrónico<input name="email" type="email" required value="${esc(u.email || '')}" autocomplete="email" /></label>
-          <label class="field">Teléfono<input name="phone" type="tel" maxlength="40" autocomplete="tel" /></label>
-          <label class="field">Dirección de entrega<textarea name="address" rows="3" required maxlength="300" autocomplete="street-address"></textarea></label>
-          <label class="field">Notas (opcional)<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+          <label class="field">Nombre<input name="name" data-validate="name" placeholder="Ej. John Doe" required maxlength="100" value="${esc(u.name || '')}" autocomplete="name" /></label>
+          <label class="field">Correo electrónico<input name="email" type="email" data-validate="email" placeholder="Ej. john@correo.com" required value="${esc(u.email || '')}" autocomplete="email" /></label>
+          <label class="field">Teléfono<input name="phone" type="tel" data-validate="phone" placeholder="Ej. +1 555 123 4567" maxlength="40" autocomplete="tel" /></label>
+          <label class="field">Dirección de entrega<textarea name="address" rows="3" placeholder="Ej. Calle 10, casa 25, Ciudad" required maxlength="300" autocomplete="street-address"></textarea></label>
+          <label class="field">Notas (opcional)<textarea name="notes" rows="2" placeholder="Ej. Entregar después de las 3 p. m." maxlength="500"></textarea></label>
           <p class="form-error" role="alert" hidden></p>
           <button class="btn" type="submit">Confirmar pedido · ${money2(cart.total)}</button>
         </form>` : '<button class="btn" type="button" id="checkout-next">Siguiente</button>';

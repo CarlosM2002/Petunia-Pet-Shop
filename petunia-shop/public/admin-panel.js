@@ -3,6 +3,26 @@
   'use strict';
   const $ = (s, r = document) => r.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let feedbackId = 0;
+  document.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-validate="email"]');
+    if (!input) return;
+    let feedback = input.nextElementSibling;
+    if (!feedback?.classList.contains('input-feedback')) {
+      feedback = document.createElement('small');
+      feedback.className = 'input-feedback';
+      feedback.id = `admin-input-feedback-${++feedbackId}`;
+      feedback.setAttribute('aria-live', 'polite');
+      input.after(feedback);
+      input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), feedback.id].filter(Boolean).join(' '));
+    }
+    const invalid = !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~@-]*$/.test(input.value);
+    const message = 'El correo no debe llevar espacios ni caracteres no válidos.';
+    input.setCustomValidity(invalid ? message : '');
+    input.setAttribute('aria-invalid', String(invalid));
+    feedback.textContent = invalid ? message : '';
+    feedback.hidden = !invalid;
+  });
   const money = (c) => '$' + (c / 100).toFixed(2);
   const fdate = (iso) => (iso ? new Date(iso).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
   const STATUS = { pending: 'Pendiente', paid: 'En proceso', shipped: 'Enviado', delivered: 'Recibido', cancelled: 'Cancelado' };
@@ -170,16 +190,16 @@
     const chk = (name, label, on) => `<label><input type="checkbox" name="${name}" ${on ? 'checked' : ''}> ${label}</label>`;
     openDlg(`<form id="pform"><h2 style="margin-top:0">${id ? 'Editar producto' : 'Nuevo producto'}</h2>
       <div class="grid2">
-        <label>Nombre<input name="name" required maxlength="120" value="${esc(p.name)}"></label>
-        <label>Subtítulo<input name="subtitle" maxlength="160" value="${esc(p.subtitle)}"></label>
-        <label>Precio regular (USD)<input name="price" type="number" min="0" step="0.01" required value="${(p.priceCents / 100).toFixed(2)}"></label>
-        <label>Stock<input name="stock" type="number" min="0" step="1" required value="${p.stock}"></label>
+        <label>Nombre<input name="name" placeholder="Ej. Collar arcoíris" required maxlength="120" value="${esc(p.name)}"></label>
+        <label>Subtítulo<input name="subtitle" placeholder="Ej. Hecho a mano para tu mascota" maxlength="160" value="${esc(p.subtitle)}"></label>
+        <label>Precio regular (USD)<input name="price" type="number" min="0" step="0.01" placeholder="Ej. 25.00" required value="${(p.priceCents / 100).toFixed(2)}"></label>
+        <label>Stock<input name="stock" type="number" min="0" step="1" placeholder="Ej. 10" required value="${p.stock}"></label>
         <label>Categoría${sel('category', categoryOptions, p.category)}</label>
         <label>Tipo${sel('type', META.types, p.type, '—')}</label>
         <label>Colección${sel('collection', META.collections, p.collection, 'Ninguna')}</label>
         ${p.salePriceCents != null ? `<label>Precio en promoción<input disabled value="${money(p.salePriceCents)} (automático)"></label>` : '<span></span>'}
       </div>
-      <label>Descripción<textarea name="description" rows="3" maxlength="2000">${esc(p.description)}</textarea></label>
+      <label>Descripción<textarea name="description" rows="3" maxlength="2000" placeholder="Ej. Collar cómodo y ajustable, elaborado a mano.">${esc(p.description)}</textarea></label>
       <fieldset><legend>Etiquetas y visibilidad</legend><div class="checks">
         ${chk('isNew', 'Nuevo', p.isNew)}${chk('bestseller', 'Más vendido (portada)', p.bestseller)}${chk('latest', 'Últimos modelos (portada)', p.latest)}${chk('active', 'Visible en la tienda', p.active)}</div></fieldset>
       <fieldset><legend>Tallas</legend><div class="checks">${META.sizes.map((s) => `<label><input type="checkbox" name="size" value="${esc(s)}" ${p.sizes.includes(s) ? 'checked' : ''}> ${esc(s)}</label>`).join('')}</div></fieldset>
@@ -191,9 +211,9 @@
         <button type="button" class="btn ghost sm" id="add-sec">+ Agregar sección</button>${p.sections ? '' : '<p class="muted">Se crearán las secciones estándar al guardar.</p>'}</fieldset>
       <div class="actions"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn" type="submit">Guardar</button></div></form>`);
 
-    const renderColors = () => { $('#colors').innerHTML = draft.colors.map((c, i) => `<div class="color-row"><input type="color" data-i="${i}" data-k="hex" value="${/^#[0-9a-f]{6}$/i.test(c.hex) ? esc(c.hex) : '#000000'}"><input type="text" data-i="${i}" data-k="name" maxlength="40" placeholder="Nombre del color" value="${esc(c.name)}"><button type="button" class="btn ghost sm" data-rmcolor="${i}">✕</button></div>`).join('') || '<p class="muted">Sin colores.</p>'; };
+    const renderColors = () => { $('#colors').innerHTML = draft.colors.map((c, i) => `<div class="color-row"><input type="color" data-i="${i}" data-k="hex" value="${/^#[0-9a-f]{6}$/i.test(c.hex) ? esc(c.hex) : '#000000'}"><input type="text" data-i="${i}" data-k="name" maxlength="40" placeholder="Ej. Rosa pastel" value="${esc(c.name)}"><button type="button" class="btn ghost sm" data-rmcolor="${i}">✕</button></div>`).join('') || '<p class="muted">Sin colores.</p>'; };
     const renderImages = () => { $('#images').innerHTML = draft.images.map((f, i) => `<figure><img src="/media/${esc(f)}" alt=""><button type="button" class="btn ghost sm" data-imv="${i}:-1" ${i === 0 ? 'disabled' : ''}>←</button><button type="button" class="btn ghost sm" data-imv="${i}:1" ${i === draft.images.length - 1 ? 'disabled' : ''}>→</button><button type="button" class="btn ghost sm" data-imrm="${i}">✕</button></figure>`).join('') || '<p class="muted">Sin fotos.</p>'; };
-    const renderSecs = () => { $('#sections').innerHTML = draft.sections.map((s, i) => `<details class="sec" ${s.open ? 'open' : ''}><summary>${esc(s.title || 'Nueva sección')}</summary><input data-si="${i}" data-sk="title" maxlength="80" placeholder="Título" value="${esc(s.title)}"><textarea data-si="${i}" data-sk="body" rows="3" maxlength="2000" placeholder="Texto">${esc(s.body)}</textarea><button type="button" class="btn ghost sm" data-rmsec="${i}" style="margin-top:.4rem">Quitar sección</button></details>`).join(''); };
+    const renderSecs = () => { $('#sections').innerHTML = draft.sections.map((s, i) => `<details class="sec" ${s.open ? 'open' : ''}><summary>${esc(s.title || 'Nueva sección')}</summary><input data-si="${i}" data-sk="title" maxlength="80" placeholder="Ej. Materiales y cuidados" value="${esc(s.title)}"><textarea data-si="${i}" data-sk="body" rows="3" maxlength="2000" placeholder="Ej. Limpia con un paño húmedo y deja secar al aire.">${esc(s.body)}</textarea><button type="button" class="btn ghost sm" data-rmsec="${i}" style="margin-top:.4rem">Quitar sección</button></details>`).join(''); };
     renderColors(); renderImages(); renderSecs();
 
     const f = $('#pform');
@@ -271,7 +291,7 @@
         <button class="btn sm" data-cedit="${c.id}">Editar</button><button class="btn danger sm" data-cdel="${c.id}">Eliminar</button></div></div>`).join('') || '<p class="muted">No hay colecciones.</p>'}</div>
 
       <h2>3. Textos de la página</h2>
-      <form id="ppform" class="stack card">${PROMO_FIELDS.map(([k, l]) => `<label>${l}<${k === 'promo_intro' ? `textarea name="${k}" rows="2" maxlength="500">${esc(page[k])}</textarea>` : `input name="${k}" maxlength="500" value="${esc(page[k])}">`}</label>`).join('')}
+      <form id="ppform" class="stack card">${PROMO_FIELDS.map(([k, l]) => `<label>${l}<${k === 'promo_intro' ? `textarea name="${k}" rows="2" maxlength="500" placeholder="Ej. Descubre nuestras ofertas y colecciones.">${esc(page[k])}</textarea>` : `input name="${k}" maxlength="500" placeholder="Ej. ${esc(l)}" value="${esc(page[k])}">`}</label>`).join('')}
         <div><button class="btn" type="submit">Guardar textos</button></div></form>`;
 
     const refresh = () => vPromociones();
@@ -300,8 +320,8 @@
     let img = c?.image || '';
     const inside = new Set(detail.productIds);
     openDlg(`<form id="cform"><h2 style="margin-top:0">${c ? 'Editar colección' : 'Nueva colección'}</h2>
-      <label>Nombre<input name="name" required maxlength="80" value="${esc(c?.name || '')}"></label><br>
-      <label>Descripción<textarea name="description" rows="3" maxlength="300">${esc(c?.description || '')}</textarea></label>
+      <label>Nombre<input name="name" placeholder="Ej. Colección de verano" required maxlength="80" value="${esc(c?.name || '')}"></label><br>
+      <label>Descripción<textarea name="description" rows="3" maxlength="300" placeholder="Ej. Diseños coloridos para los días soleados.">${esc(c?.description || '')}</textarea></label>
       <fieldset><legend>Productos de esta colección</legend>
         <input id="cq" type="search" placeholder="Buscar producto…" style="width:100%;margin-bottom:.5rem">
         <div class="pickbox" id="cprods">${prods.map((x) => `<label data-n="${esc(x.name.toLowerCase())}"><input type="checkbox" name="pid" value="${x.id}" ${inside.has(x.id) ? 'checked' : ''}> ${esc(x.name)} <span class="muted">· ${esc(x.categoryName)}${x.collection && !inside.has(x.id) ? ` · ahora en ${esc(x.collection)}` : ''}${x.active ? '' : ' · archivado'}</span></label>`).join('') || '<p class="muted">Aún no hay productos.</p>'}</div>
@@ -339,7 +359,7 @@
     const prods = await api('/admin/products?status=active');
     const cur = p || { name: '', percent: 10, scope: 'products', scopeRef: '', startsAt: '', endsAt: '', active: true, productIds: [] };
     openDlg(`<form id="prform"><h2 style="margin-top:0">${p ? 'Editar promoción' : 'Nueva promoción'}</h2>
-      <div class="grid2"><label>Nombre<input name="name" required maxlength="80" value="${esc(cur.name)}"></label><label>Descuento (%)<input name="percent" type="number" min="1" max="90" required value="${cur.percent}"></label>
+      <div class="grid2"><label>Nombre<input name="name" placeholder="Ej. Descuento de temporada" required maxlength="80" value="${esc(cur.name)}"></label><label>Descuento (%)<input name="percent" type="number" min="1" max="90" placeholder="Ej. 15" required value="${cur.percent}"></label>
         <label>Desde (opcional)<input name="startsAt" type="date" value="${esc(cur.startsAt)}"></label><label>Hasta (opcional, inclusive)<input name="endsAt" type="date" value="${esc(cur.endsAt)}"></label></div>
       <label>Aplica a<select name="scope">${Object.entries(SCOPE).map(([k, l]) => `<option value="${k}" ${cur.scope === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <div id="sc-category" hidden><br><label>Categoría<select name="cat">${META.categories.map((c) => `<option value="${c.slug}" ${cur.scopeRef === c.slug ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label></div>
@@ -369,7 +389,7 @@
   async function vAyuda() {
     const d = await api('/admin/help');
     view.innerHTML = `<h1>Página de ayuda</h1><p class="muted">Lo que cambies aquí se actualiza en <a href="/informacion.html" target="_blank" rel="noopener">informacion.html</a>.</p>
-      <form id="hform" class="stack">${HELP_FIELDS.map(([title, fields]) => `<fieldset><legend>${title}</legend><div class="stack">${fields.map(([k, label, rows]) => `<label>${label}${rows > 1 ? `<textarea name="${k}" rows="${rows}" maxlength="1500">${esc(d.settings[k])}</textarea>` : `<input name="${k}" maxlength="1500" value="${esc(d.settings[k])}">`}</label>`).join('')}</div></fieldset>`).join('')}
+      <form id="hform" class="stack">${HELP_FIELDS.map(([title, fields]) => `<fieldset><legend>${title}</legend><div class="stack">${fields.map(([k, label, rows]) => `<label>${label}${rows > 1 ? `<textarea name="${k}" rows="${rows}" maxlength="1500" placeholder="Ej. Escribe aquí ${label.toLowerCase()}.">${esc(d.settings[k])}</textarea>` : `<input name="${k}" maxlength="1500" placeholder="Ej. ${esc(label)}" value="${esc(d.settings[k])}">`}</label>`).join('')}</div></fieldset>`).join('')}
         <div><button class="btn" type="submit">Guardar textos</button></div></form>
       <h2>Preguntas frecuentes</h2><div class="bar"><button class="btn" id="f-new">+ Nueva pregunta</button></div>
       <div class="stack">${d.faqs.map((q, i) => `<div class="row"><div class="grow"><strong>${esc(q.question)}</strong><br><span class="muted">${esc(q.answer.slice(0, 140))}${q.answer.length > 140 ? '…' : ''}</span></div>
@@ -380,8 +400,8 @@
     view.querySelectorAll('[data-fup]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.fup, -1)); });
     view.querySelectorAll('[data-fdown]').forEach((b) => { b.onclick = () => reorderTo(move(ids, +b.dataset.fdown, 1)); });
     const form = (q) => { openDlg(`<form id="fform"><h2 style="margin-top:0">${q ? 'Editar pregunta' : 'Nueva pregunta'}</h2>
-      <label>Pregunta<input name="question" required maxlength="200" value="${esc(q?.question || '')}"></label><br>
-      <label>Respuesta<textarea name="answer" rows="6" required maxlength="2000">${esc(q?.answer || '')}</textarea></label>
+      <label>Pregunta<input name="question" placeholder="Ej. ¿Cómo puedo limpiar el collar?" required maxlength="200" value="${esc(q?.question || '')}"></label><br>
+      <label>Respuesta<textarea name="answer" rows="6" required maxlength="2000" placeholder="Ej. Límpialo con un paño húmedo y déjalo secar al aire.">${esc(q?.answer || '')}</textarea></label>
       <div class="actions"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn" type="submit">Guardar</button></div></form>`);
       $('#fform').onsubmit = guard(async (e) => { e.preventDefault(); const fd = new FormData(e.target);
         await api(q ? '/admin/faqs/' + q.id : '/admin/faqs', { method: q ? 'PUT' : 'POST', body: { question: fd.get('question'), answer: fd.get('answer') } }); closeDlg(); toast('Pregunta guardada'); vAyuda(); }); };
