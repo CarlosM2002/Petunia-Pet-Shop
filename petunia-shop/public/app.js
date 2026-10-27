@@ -231,7 +231,10 @@
     $('#product-crumbs').innerHTML = `<a href="index.html">Home</a><span class="sep" aria-hidden="true">/</span><a href="${p.category}.html">${esc(p.categoryName)}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">${esc(cap(p.name))}</span>`;
 
     const imgs = p.images;
-    const thumbs = imgs.length > 1 ? `<div class="thumbs">${imgs.map((i, k) => `<button class="thumb" type="button" data-src="${esc(i.src)}" ${k === 0 ? 'aria-current="true"' : ''} aria-label="Ver foto ${k + 1}"><img src="${esc(i.src)}" alt="" /></button>`).join('')}</div>` : '';
+    const plateOn = !!(p.personalizable && p.colors.length);   // producto con nombre grabado
+    const showThumbs = imgs.length > 1 || plateOn;
+    const plateThumb = plateOn ? '<button class="thumb thumb-plate" type="button" data-plate aria-label="Ver tu placa personalizada"><span class="plate-thumb" id="plate-thumb"></span></button>' : '';
+    const thumbs = showThumbs ? `<div class="thumbs">${imgs.map((i, k) => `<button class="thumb" type="button" data-src="${esc(i.src)}" ${k === 0 ? 'aria-current="true"' : ''} aria-label="Ver foto ${k + 1}"><img src="${esc(i.src)}" alt="" /></button>`).join('')}${plateThumb}</div>` : '';
     const colors = p.colors.length ? `<div><h2>Colores</h2><div class="color-swatches">${p.colors.map((c, k) => `<button type="button" data-color="${c.id}" aria-pressed="${k === 0}" aria-label="Color ${esc(c.name)}" title="${esc(c.name)}" style="--swatch-color: ${esc(c.hex)}"></button>`).join('')}</div></div>` : '';
     const sizes = p.sizes.length ? `<div class="size-row"><label for="product-size">Talla</label><select id="product-size">${p.sizes.map((s) => `<option value="${s.id}">${esc(s.label)}</option>`).join('')}</select></div>` : '';
     const r = p.rating;
@@ -239,16 +242,16 @@
       : `<span class="stars" aria-hidden="true">☆☆☆☆☆</span><a href="#opiniones">Sé el primero en opinar</a>`;
     const desc = (p.description || '').split('\n').map((t) => `<p>${esc(t)}</p>`).join('');
     $('#product-detail').innerHTML = `
-      <section class="gallery${imgs.length > 1 ? '' : ' single'}" aria-label="Imágenes de ${esc(p.name)}">
+      <section class="gallery${showThumbs ? '' : ' single'}" aria-label="Imágenes de ${esc(p.name)}">
         ${thumbs}
-        <div class="gallery-main"><img src="${esc(imgs[0]?.src || '')}" alt="${esc(imgs[0]?.alt || p.name)}" /></div>
+        <div class="gallery-main"><img src="${esc(imgs[0]?.src || '')}" alt="${esc(imgs[0]?.alt || p.name)}" />${plateOn ? '<div class="plate-main" id="plate-main" hidden></div>' : ''}</div>
       </section>
       <section class="buy" aria-labelledby="product-title">
         <h1 id="product-title">${esc(p.name)}</h1>
         <strong class="big-price">${p.regularPrice ? `<s>${money(p.regularPrice)}</s>` : ''}${money(p.price)}</strong>
         <p class="lead">${esc(p.subtitle ? cap(p.subtitle) + '.' : '')}</p>
         ${colors}${sizes}
-        ${p.slug === 'placas-con-nombre' && p.colors.length ? '<button class="btn btn-custom" type="button" id="custom-btn" aria-haspopup="dialog">✎ Personalizar placa</button>' : ''}
+        ${plateOn ? '<button class="btn btn-custom" type="button" id="custom-btn" aria-haspopup="dialog">✎ Personalizar placa</button><p class="plate-summary" id="plate-summary" hidden></p>' : ''}
         <button class="btn" type="button" id="add-btn" ${p.stock < 1 ? 'disabled' : ''}>${p.stock < 1 ? 'Agotado' : `Agregar a la bolsa · ${money(p.price)}`}</button>
         <div class="reviews">${stars}</div>
         <div class="desc"><h2>Descripción del producto</h2>${desc}</div>
@@ -258,10 +261,20 @@
       </section>`;
 
     const main = $('.gallery-main img');
+    const plateMain = $('#plate-main');
+    const showPlate = (on) => {                      // alterna entre la foto del producto y la placa personalizada
+      if (!plateMain) return;
+      plateMain.hidden = !on;
+      if (main) main.hidden = on;
+      $$('.thumb').forEach((x) => x.removeAttribute('aria-current'));
+      (on ? $('.thumb-plate') : $$('.thumb[data-src]').find((t) => t.dataset.src === main.getAttribute('src')))?.setAttribute('aria-current', 'true');
+    };
     $$('.thumb').forEach((t) => t.addEventListener('click', () => {
+      if ('plate' in t.dataset) return showPlate(true);
+      if (main) { main.src = t.dataset.src; }
+      showPlate(false);
       $$('.thumb').forEach((x) => x.removeAttribute('aria-current'));
       t.setAttribute('aria-current', 'true');
-      main.src = t.dataset.src;
     }));
     const box = $('.gallery-main');
     box.addEventListener('mousemove', (e) => {
@@ -269,14 +282,57 @@
       main.style.setProperty('--zx', ((e.clientX - b.left) / b.width) * 100 + '%');
       main.style.setProperty('--zy', ((e.clientY - b.top) / b.height) * 100 + '%');
     });
+
+    /* Diseño de la placa: color y nombre. Se recuerda en el navegador para no perderlo si el cliente se va y vuelve. */
     let colorId = p.colors[0]?.id || null;
+    let petName = '';
+    const draftKey = `petunia-placa:${p.slug}`;
+    if (plateOn) {
+      try {
+        const d = JSON.parse(localStorage.getItem(draftKey) || 'null');
+        if (d && p.colors.some((c) => c.id === d.colorId)) colorId = d.colorId;
+        if (d && typeof d.name === 'string' && !/[^\p{L}\p{M}\p{N} '\u2019.\-]/u.test(d.name)) petName = d.name.slice(0, 12);
+      } catch { /* sin almacenamiento: el diseño solo dura mientras la página esté abierta */ }
+    }
+    const colorOf = () => p.colors.find((c) => c.id === colorId) || p.colors[0];
+    const saveDraft = () => { if (!plateOn) return; try { localStorage.setItem(draftKey, JSON.stringify({ colorId, name: petName })); } catch { /* ignorar */ } };
+    function drawPlate() {
+      if (!plateOn) return;
+      plateMain.innerHTML = `<div class="plate-main-art">${plateSVG(colorOf().hex, petName, 'Petunia')}<p>Vista previa de tu placa${petName ? '' : ' · escribe el nombre de tu mascota'}</p></div>`;
+      $('#plate-thumb').innerHTML = plateSVG(colorOf().hex, petName, 'Petunia');
+      const sum = $('#plate-summary');
+      sum.hidden = !petName;
+      sum.innerHTML = petName ? `<span>Tu placa: <b>${esc(petName)}</b> · ${esc(colorOf().name)}</span><button class="link-btn" type="button" id="plate-edit">Editar</button>` : '';
+      fitPlates($('#product-detail'));
+    }
     const setColor = (id) => {
       colorId = id;
       $$('#product-detail .color-swatches button').forEach((x) => x.setAttribute('aria-pressed', String(Number(x.dataset.color) === id)));
+      saveDraft(); drawPlate();
     };
     $$('#product-detail .color-swatches button').forEach((b) => b.addEventListener('click', () => setColor(Number(b.dataset.color))));
-    if ($('#custom-btn')) $('#custom-btn').addEventListener('click', () => openPlateCustomizer(p.colors, colorId, setColor));
-    $('#add-btn').addEventListener('click', () => addToCart(p.id, p.name, { colorId, sizeId: Number($('#product-size')?.value) || null }));
+    setColor(colorId);
+    if (plateOn && petName) showPlate(true);
+
+    const buyOptions = () => ({ colorId, sizeId: Number($('#product-size')?.value) || null, ...(plateOn ? { customName: petName } : {}) });
+    const addPlate = async () => {
+      await addToCart(p.id, p.name, buyOptions(), { rethrow: true });
+      toast(`Placa de ${petName} agregada a la bolsa`);
+      openOverlay('cart');                                      // la bolsa se abre para ver la placa personalizada
+    };
+    const designer = () => openPlateCustomizer({
+      colors: p.colors, colorId, name: petName,
+      applyLabel: 'Guardar diseño', addLabel: p.stock > 0 ? `Agregar a la bolsa · ${money(p.price)}` : null,
+      onApply: ({ colorId: c, name }) => { petName = name; setColor(c); showPlate(true); toast('Diseño guardado'); },
+      onAdd: async ({ colorId: c, name }) => { petName = name; setColor(c); showPlate(true); await addPlate(); },
+    });
+    $('#custom-btn')?.addEventListener('click', designer);
+    $('#plate-summary')?.addEventListener('click', (e) => { if (e.target.id === 'plate-edit') designer(); });
+    $('#add-btn').addEventListener('click', () => {
+      if (!plateOn) return addToCart(p.id, p.name, buyOptions());
+      if (!petName) { toast('Primero escribe el nombre de tu mascota'); return designer(); }   // la placa se fabrica con ese nombre
+      addPlate().catch((e) => toast(e.message));
+    });
 
     // Opiniones
     renderReviews(p);
@@ -284,32 +340,32 @@
     if (p.related.length) { $('#related').hidden = false; $('#related-grid').innerHTML = p.related.map(cardHTML).join(''); }
   }
 
-  /* Personalizador de placa con nombre: vista previa en vivo (SVG) */
-  const mix = (hex, to, t) => {
-    const n = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-    const a = n(hex), b = n(to);
-    return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
-  };
-  const plateSVG = (hex) => `
-    <svg class="plate-svg" viewBox="0 0 400 330" role="img" aria-label="Vista previa de la placa">
+  /* ───────── Placa con nombre: dibujo (SVG), ajuste del texto y ventana de personalización ─────────
+     Se usa en la ficha del producto, la bolsa, el carrito, el pedido y "Mis pedidos". */
+  const HEX = /^#[0-9a-f]{6}$/i;
+  let plateUid = 0;
+  /* `ghost` es un nombre de ejemplo atenuado que se muestra mientras no haya uno escrito. */
+  const plateSVG = (hex, name, ghost = '') => {
+    hex = HEX.test(hex) ? hex : '#945bc0';
+    const n = `pl${++plateUid}`;                                 // ids únicos: puede haber varias placas en la misma página
+    return `
+    <svg class="plate-svg" viewBox="0 0 400 330" role="img" aria-label="Placa${name ? ' con el nombre ' + esc(name) : ''}">
       <defs>
-        <linearGradient id="pl-glass" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="${n}-glass" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".55" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".26"/>
         </linearGradient>
-        <linearGradient id="pl-ring" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="${n}-ring" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#f4f5f7"/><stop offset=".5" stop-color="#9aa0a8"/><stop offset="1" stop-color="#d9dce1"/>
         </linearGradient>
-        <filter id="pl-emboss" x="-10%" y="-30%" width="120%" height="170%">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.3" flood-color="#4a1d6b" flood-opacity=".45"/>
-        </filter>
-        <filter id="pl-soft" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#2d0f55" flood-opacity=".28"/></filter>
+        <filter id="${n}-emboss" x="-10%" y="-30%" width="120%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="1.3" flood-color="#4a1d6b" flood-opacity=".45"/></filter>
+        <filter id="${n}-soft" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#2d0f55" flood-opacity=".28"/></filter>
       </defs>
-      <ellipse cx="200" cy="52" rx="23" ry="27" fill="none" stroke="url(#pl-ring)" stroke-width="6"/>
+      <ellipse cx="200" cy="52" rx="23" ry="27" fill="none" stroke="url(#${n}-ring)" stroke-width="6"/>
       <ellipse cx="200" cy="52" rx="23" ry="27" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.5" transform="translate(-1.5 -1.5)"/>
-      <g filter="url(#pl-soft)">
+      <g filter="url(#${n}-soft)">
         <rect x="42" y="86" width="316" height="210" rx="22" fill="none" stroke="${hex}" stroke-opacity=".6" stroke-width="5"/>
         <rect x="42" y="78" width="316" height="210" rx="22" fill="none" stroke="${hex}" stroke-opacity=".3" stroke-width="5"/>
-        <rect x="40" y="70" width="320" height="214" rx="22" fill="url(#pl-glass)" stroke="#fff" stroke-opacity=".9" stroke-width="2.5"/>
+        <rect x="40" y="70" width="320" height="214" rx="22" fill="url(#${n}-glass)" stroke="#fff" stroke-opacity=".9" stroke-width="2.5"/>
       </g>
       <rect x="176" y="60" width="48" height="22" rx="10" fill="#fff" fill-opacity=".45"/>
       <rect x="58" y="88" width="284" height="78" rx="12" fill="${hex}"/>
@@ -318,76 +374,104 @@
       <text x="200" y="156" text-anchor="middle" class="pl-sub">my name is</text>
       <rect x="58" y="246" width="284" height="20" rx="10" fill="${hex}"/>
       <rect x="58" y="246" width="284" height="7" rx="3.5" fill="#fff" fill-opacity=".2"/>
-      <text id="pl-name" x="200" y="218" text-anchor="middle" class="pl-name" filter="url(#pl-emboss)"></text>
+      <text x="200" y="218" text-anchor="middle" class="pl-name" filter="url(#${n}-emboss)" style="font-size:56px;${name ? '' : 'opacity:.45'}">${esc(name || ghost)}</text>
       <path d="M60 96 L130 96 L84 262 L60 262 Z" fill="#fff" fill-opacity=".14"/>
     </svg>`;
+  };
+  /* Miniatura cuadrada/vertical de la placa para listas (bolsa, carrito, pedidos). */
+  const platePic = (hex, name) => `<span class="plate-thumb">${plateSVG(hex, name)}</span>`;
+  /* Imagen de una línea: la placa personalizada si tiene nombre; si no, la foto del producto. */
+  const itemPic = ({ customName, colorHex, image }) =>
+    customName && colorHex ? platePic(colorHex, customName) : image ? `<img src="${esc(image)}" alt="" />` : '<span class="no-photo" aria-hidden="true"></span>';
 
-  function openPlateCustomizer(colors, currentId, onApply) {
+  /* Reduce el nombre si no cabe en la placa (se mide con la fuente real, ya cargada). */
+  function fitPlates(root = document) {
+    $$('.pl-name', root).forEach((t) => {
+      t.style.fontSize = '56px';
+      let w = 0;
+      try { w = t.getComputedTextLength(); } catch { return; }
+      if (w > 250) t.style.fontSize = Math.max(26, Math.floor((56 * 250) / w)) + 'px';
+    });
+  }
+  document.fonts?.ready.then(() => fitPlates());
+
+  /* Ventana de personalización.
+     opts: { colors:[{id,name,hex}], colorId, name, title, applyLabel, addLabel, requireName, onApply({colorId,name}), onAdd({colorId,name}) }
+     Los callbacks pueden ser asíncronos: si lanzan un error, se muestra dentro de la ventana. */
+  function openPlateCustomizer(opts) {
     let dlg = $('#plate-dialog');
     if (!dlg) {
       dlg = document.createElement('dialog');
       dlg.id = 'plate-dialog';
       dlg.className = 'plate-dialog';
       dlg.setAttribute('aria-labelledby', 'plate-title');
-      dlg.innerHTML = `
-        <button type="button" class="plate-close" data-close aria-label="Cerrar">×</button>
-        <h2 id="plate-title">Personaliza tu placa</h2>
-        <p class="plate-lead">Escribe el nombre de tu mascota y elige el color para ver cómo quedaría.</p>
-        <div class="plate-stage" id="plate-stage"></div>
-        <div class="plate-field">
-          <label for="plate-name-input">Nombre de tu mascota</label>
-          <input id="plate-name-input" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Ej. Petunia" />
-          <small id="plate-count" aria-live="polite">0/12</small>
-          <small id="plate-name-feedback" class="input-feedback" role="status" aria-live="polite" hidden>Usa letras, números, espacios, apóstrofos, puntos o guiones.</small>
-        </div>
-        <div class="plate-field">
-          <span class="plate-label">Color: <b id="plate-color-name"></b></span>
-          <div class="color-swatches" id="plate-swatches"></div>
-        </div>
-        <p class="plate-note">Vista previa ilustrativa: el acabado final de la placa puede variar ligeramente.</p>
-        <button type="button" class="btn" id="plate-apply">Usar este color</button>`;
       document.body.appendChild(dlg);
     }
-    let selected = colors.find((c) => c.id === currentId) || colors[0];
-    const stage = $('#plate-stage', dlg), input = $('#plate-name-input', dlg);
-    const sw = $('#plate-swatches', dlg);
+    dlg.innerHTML = `
+      <button type="button" class="plate-close" data-close aria-label="Cerrar">×</button>
+      <h2 id="plate-title">${esc(opts.title || 'Personaliza tu placa')}</h2>
+      <p class="plate-lead">Escribe el nombre de tu mascota y elige el color para ver cómo quedaría.</p>
+      <div class="plate-stage" id="plate-stage"></div>
+      <div class="plate-field">
+        <label for="plate-name-input">Nombre de tu mascota</label>
+        <input id="plate-name-input" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Ej. Petunia" />
+        <small class="input-feedback" id="plate-name-feedback" role="status" aria-live="polite" hidden>Usa letras, números, espacios, apóstrofos, puntos o guiones.</small>
+        <small id="plate-count" aria-live="polite">0/12</small>
+      </div>
+      <div class="plate-field">
+        <span class="plate-label">Color: <b id="plate-color-name"></b></span>
+        <div class="color-swatches" id="plate-swatches"></div>
+      </div>
+      <p class="form-error" id="plate-error" role="alert" hidden></p>
+      <p class="plate-note">Vista previa ilustrativa: el acabado final de la placa puede variar ligeramente.</p>
+      <div class="plate-actions">
+        ${opts.addLabel ? `<button type="button" class="btn" id="plate-add">${esc(opts.addLabel)}</button>` : ''}
+        <button type="button" class="btn ${opts.addLabel ? 'btn-light' : ''}" id="plate-apply">${esc(opts.applyLabel || 'Guardar diseño')}</button>
+      </div>`;
+
+    const colors = opts.colors || [];
+    let selected = colors.find((c) => c.id === opts.colorId) || colors[0];
+    const input = $('#plate-name-input', dlg), err = $('#plate-error', dlg), sw = $('#plate-swatches', dlg), feedback = $('#plate-name-feedback', dlg);
+    const buttons = $$('#plate-add, #plate-apply', dlg);
+    input.value = opts.name || '';
     sw.innerHTML = colors.map((c) => `<button type="button" data-color="${c.id}" aria-label="Color ${esc(c.name)}" title="${esc(c.name)}" style="--swatch-color:${esc(c.hex)}"></button>`).join('');
 
-    const drawName = () => {
-      const t = $('#pl-name', dlg); if (!t) return;
-      const val = input.value.trim();
-      t.textContent = val || 'Petunia';
-      t.style.opacity = val ? 1 : 0.45;
-      let size = 56; t.style.fontSize = size + 'px';
-      const max = 250;
-      const w = t.getComputedTextLength();
-      if (w > max) { size = Math.max(26, Math.floor(size * max / w)); t.style.fontSize = size + 'px'; }
-      $('#plate-count', dlg).textContent = `${[...input.value].length}/12`;
-    };
-    const drawColor = () => {
-      stage.innerHTML = plateSVG(selected.hex);
+    const draw = () => {
+      $('#plate-stage', dlg).innerHTML = plateSVG(selected.hex, input.value.trim(), 'Petunia');
       $('#plate-color-name', dlg).textContent = selected.name;
       $$('button', sw).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.color) === selected.id)));
-      drawName();
+      $('#plate-count', dlg).textContent = `${[...input.value].length}/12`;
+      fitPlates(dlg);
     };
-    sw.onclick = (e) => { const b = e.target.closest('button[data-color]'); if (!b) return; selected = colors.find((c) => c.id === Number(b.dataset.color)); drawColor(); };
+    sw.onclick = (e) => { const b = e.target.closest('button[data-color]'); if (!b) return; selected = colors.find((c) => c.id === Number(b.dataset.color)); draw(); };
     input.oninput = () => {
       const invalid = /[^\p{L}\p{M}\p{N} '\u2019.\-]/u.test(input.value);
-      const feedback = $('#plate-name-feedback', dlg);
       const message = feedback.textContent;
       input.setCustomValidity(invalid ? message : '');
       input.setAttribute('aria-invalid', String(invalid));
       feedback.hidden = !invalid;
-      $('#plate-apply', dlg).disabled = invalid;
-      drawName();
+      buttons.forEach((b) => { b.disabled = invalid; });
+      err.hidden = true;
+      draw();
     };
     dlg.onclick = (e) => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.close(); };
-    $('#plate-apply', dlg).onclick = () => { onApply(selected.id); dlg.close(); toast(`Color ${selected.name.toLowerCase()} seleccionado`); };
 
-    drawColor();
+    const run = (cb, needsName) => async () => {
+      const name = input.value.replace(/\s+/g, ' ').trim();
+      if ((needsName || opts.requireName) && !name) { err.textContent = 'Escribe el nombre de tu mascota para continuar.'; err.hidden = false; input.focus(); return; }
+      buttons.forEach((b) => { b.disabled = true; });
+      try { await cb?.({ colorId: selected.id, name }); dlg.close(); }
+      catch (ex) { err.textContent = ex.message || 'No pudimos guardar el diseño.'; err.hidden = false; }
+      finally { buttons.forEach((b) => { b.disabled = false; }); }
+    };
+    $('#plate-apply', dlg).onclick = run(opts.onApply, false);
+    if (opts.addLabel) $('#plate-add', dlg).onclick = run(opts.onAdd, true);
+    input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); ($('#plate-add', dlg) || $('#plate-apply', dlg)).click(); } };
+
+    input.oninput();
     dlg.showModal();
     input.focus();
-    drawName();
+    draw();
   }
 
   async function renderReviews(p) {
@@ -458,13 +542,14 @@
     if (openPanel === 'favorites') renderFavorites();
   }
 
-  async function addToCart(id, name, opts = {}) {
+  async function addToCart(id, name, opts = {}, { rethrow = false } = {}) {
     try {
       const cart = await api('/cart', { method: 'POST', body: { productId: id, qty: 1, ...opts } });
       state.cart = cart; renderCounts();
-      toast(`${cap(name)} agregado a la bolsa`);
+      if (!rethrow) toast(`${cap(name)} agregado a la bolsa`);
       if (openPanel === 'cart') renderCart();
-    } catch (e) { toast(e.message); }
+      return cart;
+    } catch (e) { if (rethrow) throw e; toast(e.message); }
   }
 
   document.addEventListener('click', (e) => {
@@ -505,7 +590,7 @@
   }
   overlay.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeOverlay(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeOverlay();
+    if (e.key === 'Escape' && !document.querySelector('dialog[open]')) closeOverlay();
     if (e.key === 'Tab' && openPanel) {
       const f = $$('button, input, textarea, select, a[href]', panel).filter((x) => !x.disabled && x.offsetParent);
       if (!f.length) return;
@@ -520,6 +605,23 @@
   $('#btn-chat')?.addEventListener('click', () => openOverlay('chat'));
 
   /* Bolsa + pago */
+  /* Edita color y nombre de una placa que ya está en la bolsa. `after(cart, keptId)` redibuja la pantalla desde la que se llamó. */
+  function editDesign(item, after) {
+    openPlateCustomizer({
+      colors: item.colors || [], colorId: item.color?.id, name: item.customName || '', requireName: true,
+      title: 'Edita tu placa', applyLabel: 'Guardar cambios',
+      onApply: async ({ colorId, name }) => {
+        const c = await api(`/cart/${item.id}`, { method: 'PATCH', body: { colorId, customName: name } });
+        state.cart = c; renderCounts();
+        toast('Placa actualizada');
+        after(c, c.keptId);
+      },
+    });
+  }
+  const designLine = (i) => (i.customName ? `<span class="cart-pet">Nombre grabado: <b>${esc(i.customName)}</b></span>` : '');
+  const metaLine = (i) => `${i.color ? `<span class="dot" style="--swatch-color:${esc(i.color.hex)}"></span>${esc(i.color.name)}` : ''}${i.color && i.size ? ' · ' : ''}${esc(i.size || '')}`;
+  const pic = (i) => itemPic({ customName: i.customName, colorHex: i.color?.hex, image: i.image });
+
   async function renderCart() {
     titleEl.textContent = 'Tu bolsa';
     const cart = await api('/cart');
@@ -528,18 +630,22 @@
     if (!cart.items.length) { body.innerHTML = emptyHTML('Tu bolsa está vacía.', 'perros.html', 'Ver productos'); return; }
     body.innerHTML = `<ul class="cart-list">${cart.items.map((i) => `
       <li class="cart-item" data-item="${i.id}">
-        <a href="producto.html?slug=${encodeURIComponent(i.slug)}"><img src="${esc(i.image)}" alt="" /></a>
+        <a class="cart-pic" href="detalle-carrito.html?item=${i.id}" aria-label="Ver ${esc(cap(i.name))}${i.customName ? ' de ' + esc(i.customName) : ''} en grande">${pic(i)}</a>
         <div class="cart-info">
           <a class="cart-name" href="producto.html?slug=${encodeURIComponent(i.slug)}">${esc(cap(i.name))}</a>
-          <small>${i.color ? `<span class="dot" style="--swatch-color:${esc(i.color.hex)}"></span>${esc(i.color.name)}` : ''}${i.color && i.size ? ' · ' : ''}${esc(i.size || '')}</small>
+          <small>${metaLine(i)}</small>
+          ${designLine(i)}
           <div class="qty" role="group" aria-label="Cantidad">
             <button type="button" data-qty="${i.qty - 1}" aria-label="Quitar uno">−</button><span>${i.qty}</span><button type="button" data-qty="${i.qty + 1}" aria-label="Agregar uno">+</button>
           </div>
+          ${i.personalizable ? '<button class="link-btn" type="button" data-edit>Editar diseño</button>' : ''}
         </div>
         <div class="cart-side"><strong>${money(i.lineTotal)}</strong><button class="link-btn" type="button" data-remove>Quitar</button></div>
       </li>`).join('')}</ul>
       <div class="cart-foot"><div class="subtotal"><span>Subtotal</span><strong>${money(cart.subtotal)}</strong></div>
+      <a class="btn btn-light" href="detalle-carrito.html">Ver detalle del carrito</a>
       <button class="btn" type="button" id="go-checkout">Finalizar compra</button></div>`;
+    fitPlates(body);
   }
 
   body.addEventListener('click', async (e) => {
@@ -551,6 +657,9 @@
         renderCounts(); renderCart();
       } else if (e.target.closest('[data-remove]') && item) {
         state.cart = await api(`/cart/${item.dataset.item}`, { method: 'DELETE' }); renderCounts(); renderCart();
+      } else if (e.target.closest('[data-edit]') && item) {
+        const line = state.cart.items.find((x) => String(x.id) === item.dataset.item);
+        if (line) editDesign(line, () => renderCart());
       } else if (e.target.id === 'go-checkout') location.href = 'carrito.html';
       else if (e.target.id === 'back-cart') renderCart();
       else if (e.target.closest('[data-fav-remove]')) { await toggleFav(e.target.closest('[data-fav-remove]').dataset.favRemove); }
@@ -608,8 +717,9 @@
       if (openPanel !== 'account') return;
       body.innerHTML = `<p class="muted">${esc(state.user.email)}</p><h3 class="panel-sub">Mis pedidos</h3>
         ${orders.length ? orders.map((o) => `<article class="order-card"><header><strong>${esc(o.code)}</strong><span class="status status-${o.status}">${{ pending: 'Pendiente', paid: 'Pagado', shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado' }[o.status]}</span></header>
-          <ul>${o.items.map((i) => `<li>${i.qty} × ${esc(cap(i.name))}${i.color ? ` (${esc(i.color)})` : ''}</li>`).join('')}</ul><footer>${new Date(o.createdAt).toLocaleDateString('es')} · ${money(o.total)}</footer></article>`).join('') : '<p class="muted">Todavía no has hecho pedidos.</p>'}
+          <ul class="order-items">${o.items.map((i) => `<li>${itemPic(i)}<span>${i.qty} × ${esc(cap(i.name))}${i.customName ? ` · “${esc(i.customName)}”` : ''}${i.color ? ` (${esc(i.color)})` : ''}</span></li>`).join('')}</ul><footer>${new Date(o.createdAt).toLocaleDateString('es')} · ${money(o.total)}</footer></article>`).join('') : '<p class="muted">Todavía no has hecho pedidos.</p>'}
         <button class="btn btn-light" type="button" id="logout">Cerrar sesión</button>`;
+      fitPlates(body);
       return;
     }
     titleEl.textContent = tab === 'login' ? 'Ingresar' : 'Crear cuenta';
@@ -655,11 +765,13 @@
     function productCell(i, editable) {
       const href = `producto.html?slug=${encodeURIComponent(i.slug)}`;
       return `<div class="checkout-product">
-        <a href="${href}"><img src="${esc(i.image)}" alt="" /></a>
+        <a class="cart-pic" href="detalle-carrito.html?item=${i.id}" aria-label="Ver ${esc(cap(i.name))}${i.customName ? ' de ' + esc(i.customName) : ''} en grande">${pic(i)}</a>
         <div class="checkout-meta">
           <a class="checkout-name" href="${href}">${esc(cap(i.name))}</a>
           ${i.size ? `<p>${esc(/^talla/i.test(i.size) ? i.size : `Talla: ${i.size}`)}</p>` : ''}
           ${i.color ? `<p><span class="dot" style="--swatch-color:${esc(i.color.hex)}"></span>Color: ${esc(i.color.name)}</p>` : ''}
+          ${i.customName ? `<p class="checkout-pet">Nombre grabado: <b>${esc(i.customName)}</b></p>` : ''}
+          ${editable && i.personalizable ? '<button class="link-btn" type="button" data-edit>Editar diseño</button>' : ''}
         </div>
         ${editable ? `<button class="remove-x" type="button" data-remove aria-label="Quitar ${esc(cap(i.name))}">×</button>` : ''}
       </div>`;
@@ -689,7 +801,7 @@
       return `<div class="checkout-top">
         <button class="checkout-back" type="button" id="checkout-back">Atrás</button>
         <h1 class="section-title">Carrito</h1>
-        <a class="link-all checkout-continue" href="index.html">Continuar comprando</a>
+        <span class="checkout-links"><a class="link-all" href="detalle-carrito.html">Ver detalle y ampliar imágenes</a><a class="link-all checkout-continue" href="index.html">Continuar comprando</a></span>
       </div>
       <div class="checkout-layout">
         <section class="checkout-sheet" aria-label="Productos del pedido">
@@ -731,6 +843,7 @@
         return;
       }
       root.innerHTML = sheet(cart);
+      fitPlates(root);
     }
 
     root.addEventListener('click', async (e) => {
@@ -751,7 +864,10 @@
       const item = e.target.closest('[data-item]');
       if (!item || step !== 'review') return;
       try {
-        if (e.target.closest('[data-qty]')) {
+        if (e.target.closest('[data-edit]')) {
+          const line = state.cart.items.find((x) => String(x.id) === item.dataset.item);
+          if (line) editDesign(line, () => draw());
+        } else if (e.target.closest('[data-qty]')) {
           const qty = Number(e.target.closest('[data-qty]').dataset.qty);
           state.cart = qty < 1
             ? await api(`/cart/${item.dataset.item}`, { method: 'DELETE' })
@@ -778,9 +894,11 @@
         root.innerHTML = `<div class="checkout-done">
           <h1 class="section-title">¡Pedido recibido!</h1>
           <p>Gracias, ${esc(data.name)}. Tu pedido <strong>${esc(o.code)}</strong> por <strong>${money2(o.total)}</strong> quedó registrado.</p>
+          <ul class="done-items" aria-label="Lo que pediste">${(o.items || []).map((i) => `<li>${pic(i)}<span><b>${i.qty} × ${esc(cap(i.name))}</b>${i.color ? `<br>${esc(i.color.name)}` : ''}${i.customName ? `<br>Nombre grabado: <b>${esc(i.customName)}</b>` : ''}</span></li>`).join('')}</ul>
           <p class="muted">Te contactaremos a ${esc(data.email)} para coordinar el pago y la entrega.</p>
           <a class="btn" href="index.html">Seguir comprando</a>
         </div>`;
+        fitPlates(root);
       } catch (ex) {
         if (ex.status === 401) {
           state.user = null;
@@ -794,6 +912,160 @@
     await draw();
   }
 
+  /* ───────── Detalle del carrito: cada producto en grande ─────────
+     Imagen ampliada (con zoom y pantalla completa), la placa personalizada con su nombre, todas las fotos del
+     producto, y los mismos controles de cantidad / edición / quitar que el resto de la tienda. */
+  async function cartDetailPage() {
+    const root = $('#cd-root');
+    if (!root) return;
+    let cart = await api('/cart');
+    state.cart = cart; renderCounts();
+
+    const want = new URLSearchParams(location.search).get('item') || location.hash.replace('#item-', '');
+    let sel = Math.max(0, cart.items.findIndex((i) => String(i.id) === String(want)));   // producto seleccionado
+    let view = 0;                                                                          // vista del producto (placa / foto 1 / foto 2…)
+
+    const isPlate = (i) => !!(i.customName && i.color);
+    /* Vistas de un producto: la placa personalizada (si la hay) y luego todas sus fotos. */
+    const viewsOf = (i) => {
+      const v = [];
+      if (isPlate(i)) v.push({ kind: 'plate', label: 'Tu placa', caption: `Vista previa de tu placa para ${i.customName}, en color ${i.color.name.toLowerCase()}.` });
+      i.images.forEach((im, k) => v.push({ kind: 'photo', src: im.src, alt: im.alt, label: isPlate(i) ? 'Foto del producto' : `Foto ${k + 1}`,
+        caption: isPlate(i) ? 'Así lucen las placas terminadas (foto de referencia).' : cap(i.name) }));
+      return v.length ? v : [{ kind: 'none', label: 'Sin foto', caption: cap(i.name) }];
+    };
+    const art = (i, v, cls = '') => v.kind === 'plate' ? `<div class="cd-art cd-plate ${cls}">${plateSVG(i.color.hex, i.customName)}</div>`
+      : v.kind === 'photo' ? `<div class="cd-art ${cls}"><img src="${esc(v.src)}" alt="${esc(v.alt)}" /></div>`
+      : `<div class="cd-art cd-none ${cls}"><span>Este producto todavía no tiene foto.</span></div>`;
+    const viewThumb = (i, v) => v.kind === 'plate' ? platePic(i.color.hex, i.customName) : v.kind === 'photo' ? `<img src="${esc(v.src)}" alt="" />` : '<span class="no-photo" aria-hidden="true"></span>';
+
+    function itemCard(i, k) {
+      return `<li class="cd-item${k === sel ? ' is-selected' : ''}" data-item="${i.id}">
+        <button class="cd-pick" type="button" data-pick="${k}" aria-pressed="${k === sel}" aria-label="Ver ${esc(cap(i.name))}${i.customName ? ' de ' + esc(i.customName) : ''} en grande">${pic(i)}</button>
+        <div class="cd-meta">
+          <a class="cd-name" href="producto.html?slug=${encodeURIComponent(i.slug)}">${esc(cap(i.name))}</a>
+          <p class="cd-tags">${metaLine(i)}</p>
+          ${designLine(i)}
+          <div class="cd-row">
+            <div class="qty" role="group" aria-label="Cantidad de ${esc(cap(i.name))}"><button type="button" data-qty="${i.qty - 1}" aria-label="Quitar uno">−</button><span>${i.qty}</span><button type="button" data-qty="${i.qty + 1}" aria-label="Agregar uno">+</button></div>
+            <strong class="cd-total">${money2(i.lineTotal)}</strong>
+          </div>
+          <p class="cd-unit">${money2(i.unitPrice)} c/u</p>
+          <div class="cd-actions">
+            ${i.personalizable ? '<button class="link-btn" type="button" data-edit>Editar diseño</button>' : ''}
+            <button class="link-btn" type="button" data-remove>Quitar</button>
+          </div>
+        </div>
+      </li>`;
+    }
+
+    function draw() {
+      const top = (n) => `<div class="cd-top"><nav class="breadcrumbs" aria-label="Ruta de navegación"><a href="index.html">Home</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Detalle del carrito</span></nav>
+        <h1 class="section-title">Detalle de tu carrito</h1>${n ? `<p class="muted">${n} ${n === 1 ? 'producto' : 'productos'} · elige uno para verlo en grande</p>` : ''}</div>`;
+      if (!cart.items.length) { root.innerHTML = top(0) + emptyHTML('Tu carrito está vacío.', 'perros.html', 'Ver productos'); return; }
+      sel = Math.min(Math.max(sel, 0), cart.items.length - 1);
+      const it = cart.items[sel], views = viewsOf(it);
+      view = Math.min(Math.max(view, 0), views.length - 1);
+      const v = views[view];
+      root.innerHTML = `${top(cart.count)}
+        <div class="cd-layout">
+          <section class="cd-viewer" aria-label="Vista ampliada de ${esc(cap(it.name))}">
+            <div class="cd-stage" id="cd-stage">
+              ${art(it, v, 'cd-zoomable')}
+              ${views.length > 1 ? '<button class="cd-nav cd-prev" type="button" data-step="-1" aria-label="Vista anterior">‹</button><button class="cd-nav cd-next" type="button" data-step="1" aria-label="Vista siguiente">›</button>' : ''}
+              <button class="cd-open" type="button" id="cd-open" aria-haspopup="dialog">⤢ Pantalla completa</button>
+            </div>
+            <p class="cd-caption" aria-live="polite">${esc(v.caption)}</p>
+            ${views.length > 1 ? `<div class="cd-views" role="group" aria-label="Vistas de ${esc(cap(it.name))}">${views.map((x, k) => `<button class="cd-view" type="button" data-view="${k}" aria-current="${k === view}" aria-label="${esc(x.label)}">${viewThumb(it, x)}<span>${esc(x.label)}</span></button>`).join('')}</div>` : ''}
+            ${isPlate(it) ? `<p class="cd-engrave">Nombre grabado <strong>${esc(it.customName)}</strong><span>Color ${esc(it.color.name.toLowerCase())}</span></p>` : ''}
+          </section>
+          <section class="cd-side" aria-label="Productos de tu carrito">
+            <ul class="cd-items">${cart.items.map(itemCard).join('')}</ul>
+            <aside class="cd-summary" aria-label="Resumen del pedido">
+              <h2>Resumen</h2>
+              <dl>
+                <dt>Subtotal (${cart.count})</dt><dd>${money2(cart.subtotal)}</dd>
+                <dt>Impuesto</dt><dd>${money2(cart.tax)}</dd>
+                <dt>Envío</dt><dd>${money2(cart.shipping)}</dd>
+                <dt class="grand">Total</dt><dd class="grand">${money2(cart.total)}</dd>
+              </dl>
+              <a class="btn" href="carrito.html">Continuar con el pedido</a>
+              <a class="link-all" href="index.html">Seguir comprando</a>
+            </aside>
+          </section>
+        </div>`;
+      fitPlates(root);
+    }
+
+    /* Pantalla completa: la vista actual, muy grande, con flechas para recorrer las vistas del producto. */
+    function lightbox() {
+      const it = cart.items[sel]; if (!it) return;
+      const views = viewsOf(it);
+      let dlg = $('#cd-lightbox');
+      if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'cd-lightbox'; dlg.className = 'cd-lightbox'; dlg.setAttribute('aria-label', 'Imagen ampliada'); document.body.appendChild(dlg); }
+      const paint = () => {
+        const v = views[view];
+        dlg.innerHTML = `<button type="button" class="plate-close" data-close aria-label="Cerrar">×</button>
+          ${views.length > 1 ? '<button class="cd-nav cd-prev" type="button" data-lb="-1" aria-label="Vista anterior">‹</button><button class="cd-nav cd-next" type="button" data-lb="1" aria-label="Vista siguiente">›</button>' : ''}
+          ${art(it, v, 'cd-lb-art')}<p class="cd-caption">${esc(cap(it.name))}${isPlate(it) && v.kind === 'plate' ? ` · ${esc(it.customName)}` : ''} — ${esc(v.label)}${views.length > 1 ? ` (${view + 1}/${views.length})` : ''}</p>`;
+        fitPlates(dlg);
+      };
+      dlg.onclick = (e) => {
+        if (e.target === dlg || e.target.closest('[data-close]')) { dlg.close(); return; }
+        const b = e.target.closest('[data-lb]'); if (b) { view = (view + Number(b.dataset.lb) + views.length) % views.length; paint(); }
+      };
+      dlg.onkeydown = (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { view = (view + (e.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length; paint(); } };
+      dlg.onclose = () => { draw(); $('#cd-open')?.focus(); };
+      paint();
+      dlg.showModal();
+    }
+
+    /* Después de cambiar algo en la bolsa, se vuelve a mostrar el mismo producto (o el más cercano). */
+    const refresh = (c, keepId) => {
+      const id = keepId ?? cart.items[sel]?.id;
+      cart = c; state.cart = c; renderCounts();
+      const k = cart.items.findIndex((i) => i.id === id);
+      sel = k >= 0 ? k : Math.min(sel, cart.items.length - 1);
+      draw();
+    };
+
+    root.addEventListener('click', async (e) => {
+      const t = e.target;
+      try {
+        const pick = t.closest('[data-pick]');
+        if (pick) { sel = Number(pick.dataset.pick); view = 0; history.replaceState(null, '', `?item=${cart.items[sel].id}`); draw(); $(`[data-pick="${sel}"]`, root)?.focus(); return; }
+        const vw = t.closest('[data-view]');
+        if (vw) { view = Number(vw.dataset.view); draw(); $(`[data-view="${view}"]`, root)?.focus(); return; }
+        const st = t.closest('[data-step]');
+        if (st) { const n = viewsOf(cart.items[sel]).length; view = (view + Number(st.dataset.step) + n) % n; draw(); $(`[data-step="${st.dataset.step}"]`, root)?.focus(); return; }
+        if (t.closest('#cd-open')) { lightbox(); return; }
+        const row = t.closest('[data-item]');
+        if (!row) return;
+        const line = cart.items.find((x) => String(x.id) === row.dataset.item);
+        if (!line) return;
+        if (t.closest('[data-qty]')) {
+          const qty = Number(t.closest('[data-qty]').dataset.qty);
+          refresh(qty < 1 ? await api(`/cart/${line.id}`, { method: 'DELETE' }) : await api(`/cart/${line.id}`, { method: 'PATCH', body: { qty } }), qty < 1 ? null : line.id);
+        } else if (t.closest('[data-remove]')) {
+          refresh(await api(`/cart/${line.id}`, { method: 'DELETE' }), null);
+        } else if (t.closest('[data-edit]')) {
+          editDesign(line, (c, keptId) => { view = 0; refresh(c, keptId); });
+        }
+      } catch (ex) { toast(ex.message); }
+    });
+
+    // Zoom con el cursor sobre la imagen (igual que en la ficha del producto)
+    root.addEventListener('mousemove', (e) => {
+      const z = e.target.closest('.cd-stage')?.querySelector('.cd-zoomable');
+      if (!z) return;
+      const b = z.getBoundingClientRect();
+      z.style.setProperty('--zx', ((e.clientX - b.left) / b.width) * 100 + '%');
+      z.style.setProperty('--zy', ((e.clientY - b.top) / b.height) * 100 + '%');
+    });
+
+    draw();
+  }
+
   /* ───────── Newsletter ───────── */
   $('#newsletter-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -805,7 +1077,7 @@
   });
 
   /* ───────── Arranque ───────── */
-  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage, checkout: checkoutPage };
+  const pages = { home: homePage, catalog: catalogPage, product: productPage, search: searchPage, checkout: checkoutPage, 'cart-detail': cartDetailPage };
   (async () => {
     await loadState().catch(() => {});
     const run = pages[document.body.dataset.page];

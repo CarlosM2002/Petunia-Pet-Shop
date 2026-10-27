@@ -62,8 +62,8 @@ router.get('/orders', (req, res) => {
   const total = get(`SELECT COUNT(*) n FROM orders ${w}`, ...args).n;
   const orders = all(`SELECT id, code, user_id AS userId, customer_name AS customerName, email, phone, address, notes, status,
       subtotal_cents AS totalCents, created_at AS createdAt FROM orders ${w} ORDER BY id DESC LIMIT ? OFFSET ?`, ...args, limit, (page - 1) * limit);
-  for (const o of orders) o.items = all(`SELECT name, color_name AS color, size_label AS size, unit_price_cents AS unitPriceCents, qty
-    FROM order_items WHERE order_id = ?`, o.id);
+  for (const o of orders) o.items = all(`SELECT name, color_name AS color, color_hex AS colorHex, size_label AS size, custom_name AS customName,
+    unit_price_cents AS unitPriceCents, qty FROM order_items WHERE order_id = ?`, o.id);
   res.json({ orders, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
 });
 

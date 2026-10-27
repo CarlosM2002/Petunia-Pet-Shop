@@ -60,10 +60,10 @@ function mergeVisitorInto(userId, visitorId) {
     const items = db.prepare('SELECT * FROM cart_items WHERE visitor_id = ?').all(visitorId);
     for (const it of items) {
       const same = db.prepare(`SELECT id FROM cart_items WHERE user_id = ? AND product_id = ?
-        AND color_id IS ? AND size_id IS ?`).get(userId, it.product_id, it.color_id, it.size_id);
+        AND color_id IS ? AND size_id IS ? AND custom_name IS ?`).get(userId, it.product_id, it.color_id, it.size_id, it.custom_name);
       if (same) db.prepare('UPDATE cart_items SET qty = MIN(99, qty + ?) WHERE id = ?').run(it.qty, same.id);
-      else db.prepare('INSERT INTO cart_items (user_id,product_id,color_id,size_id,qty) VALUES (?,?,?,?,?)')
-        .run(userId, it.product_id, it.color_id, it.size_id, it.qty);
+      else db.prepare('INSERT INTO cart_items (user_id,product_id,color_id,size_id,qty,custom_name) VALUES (?,?,?,?,?,?)')
+        .run(userId, it.product_id, it.color_id, it.size_id, it.qty, it.custom_name);
     }
     db.prepare('DELETE FROM cart_items WHERE visitor_id = ?').run(visitorId);
   })();

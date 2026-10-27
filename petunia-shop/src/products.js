@@ -43,7 +43,7 @@ function hydrate(rows, owner) {
     id: r.id, slug: r.slug, name: r.name, subtitle: r.subtitle, description: r.description,
     price: (r.sale_price_cents ?? r.price_cents) / 100, priceCents: r.sale_price_cents ?? r.price_cents,
     regularPrice: r.sale_price_cents != null ? r.price_cents / 100 : null,
-    isNew: !!r.is_new, stock: r.stock,
+    isNew: !!r.is_new, stock: r.stock, personalizable: !!r.personalizable,
     category: r.category_slug, categories: (ca[r.id] || []).map((c) => c.slug), type: r.type_name, collection: r.collection_name,
     images: (im[r.id] || []).map((i) => ({ src: `media/${i.file}`, alt: i.alt || r.name })),
     colors: (co[r.id] || []).map((c) => ({ id: c.id, name: c.name, hex: c.hex })),

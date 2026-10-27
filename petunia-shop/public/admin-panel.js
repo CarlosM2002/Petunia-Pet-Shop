@@ -132,7 +132,7 @@
             <div>${esc(o.address)}${o.notes ? `<br><em class="muted">${esc(o.notes)}</em>` : ''}</div>
             <div class="total">${money(o.totalCents)}</div>
           </div>
-          <ul class="items">${o.items.map((i) => `<li>${i.qty} × ${esc(i.name)}${i.color ? ` · ${esc(i.color)}` : ''}${i.size ? ` · ${esc(i.size)}` : ''} — ${money(i.unitPriceCents)}</li>`).join('')}</ul>
+          <ul class="items">${o.items.map((i) => `<li>${i.qty} × ${esc(i.name)}${i.color ? ` · ${i.colorHex ? `<span style="display:inline-block;width:.8em;height:.8em;border-radius:50%;border:1px solid #1f1233;vertical-align:-.1em;background:${esc(i.colorHex)}"></span> ` : ''}${esc(i.color)}` : ''}${i.size ? ` · ${esc(i.size)}` : ''} — ${money(i.unitPriceCents)}${i.customName ? `<br><strong>Nombre grabado: ${esc(i.customName)}</strong>` : ''}</li>`).join('')}</ul>
         </article>`).join('') || '<p class="muted">No hay pedidos con ese filtro.</p>'}</div>
       <div class="pager"><button class="btn ghost sm" id="o-prev" ${d.page <= 1 ? 'disabled' : ''}>← Anterior</button><span class="muted">Página ${d.page} de ${d.pages}</span><button class="btn ghost sm" id="o-next" ${d.page >= d.pages ? 'disabled' : ''}>Siguiente →</button></div>`;
     const search = () => { oState.status = $('#o-status').value; oState.q = $('#o-q').value.trim(); oState.page = 1; go('pedidos'); };

@@ -53,6 +53,14 @@ module.exports = function migrate(db) {
     INSERT OR IGNORE INTO product_categories (product_id, category_id)
       SELECT id, category_id FROM products;
   `);
+  // Placas personalizables: la bolsa y el pedido guardan el nombre de la mascota y el color elegido
+  if (!cols('products').includes('personalizable'))
+    db.exec('ALTER TABLE products ADD COLUMN personalizable INTEGER NOT NULL DEFAULT 0');
+  if (!cols('cart_items').includes('custom_name'))
+    db.exec('ALTER TABLE cart_items ADD COLUMN custom_name TEXT');
+  for (const c of ['custom_name TEXT', 'color_hex TEXT', 'image TEXT'])        // copia de lo comprado
+    if (!cols('order_items').includes(c.split(' ')[0])) db.exec(`ALTER TABLE order_items ADD COLUMN ${c}`);
+  db.exec("UPDATE products SET personalizable = 1 WHERE slug = 'placas-con-nombre'");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS promotions (
