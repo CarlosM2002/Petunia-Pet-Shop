@@ -404,8 +404,8 @@ h1, h2, h3, p { margin: 0; }
 }
 .fav img { width: 24px; height: 24px; transition: filter 0.2s; }
 .fav:hover { transform: scale(1.18) rotate(-8deg); background: var(--lilac); }
-.fav[aria-pressed="true"] { background: var(--purple); animation: pop 0.45s var(--ease); }
-.fav[aria-pressed="true"] img { filter: brightness(0) invert(1); }
+.fav[aria-pressed="true"] { background: #fff; animation: pop 0.45s var(--ease); }
+.fav[aria-pressed="true"] img { filter: brightness(0) saturate(100%) invert(14%) sepia(96%) saturate(7500%) hue-rotate(0deg) brightness(99%) contrast(117%); }
 @keyframes pop { 40% { transform: scale(1.4) rotate(12deg); } }
 
 .quick-add {
