@@ -126,7 +126,8 @@
       <div class="stack">${d.orders.map((o) => `
         <article class="card order">
           <header><div><strong>${esc(o.code)}</strong> <span class="muted">· ${fdate(o.createdAt)}</span></div>
-            <select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${orderOpts(o.status)}</select></header>
+            <div class="row-acts"><select class="status s-${o.status}" data-order="${o.id}" aria-label="Estado del pedido">${orderOpts(o.status)}</select>
+              <button class="btn danger sm" type="button" data-order-delete="${o.id}" data-order-code="${esc(o.code)}" data-order-stock-return="${['pending', 'paid'].includes(o.status)}">Borrar pedido</button></div></header>
           <div class="cols">
             <div><b>${esc(o.customerName)}</b><br>${esc(o.email)}${o.phone ? `<br>${esc(o.phone)}` : ''}${o.userId ? '<br><span class="badge ok">Usuario registrado</span>' : ''}</div>
             <div>${esc(o.address)}${o.notes ? `<br><em class="muted">${esc(o.notes)}</em>` : ''}</div>
@@ -139,6 +140,16 @@
     $('#o-go').onclick = search; $('#o-status').onchange = search; $('#o-q').onkeydown = (e) => { if (e.key === 'Enter') search(); };
     $('#o-prev').onclick = () => { oState.page--; go('pedidos'); }; $('#o-next').onclick = () => { oState.page++; go('pedidos'); };
   }
+  view.addEventListener('click', guard(async (e) => {
+    const b = e.target.closest('[data-order-delete]');
+    if (!b) return;
+    const stockNote = b.dataset.orderStockReturn === 'true' ? ' Las unidades volverán al inventario.' : '';
+    if (!confirm(`¿Borrar definitivamente el pedido ${b.dataset.orderCode}? Esta acción no se puede deshacer.${stockNote}`)) return;
+    await api('/admin/orders/' + b.dataset.orderDelete, { method: 'DELETE' });
+    if (view.querySelectorAll('.order').length === 1 && oState.page > 1) oState.page--;
+    toast('Pedido eliminado');
+    go('pedidos');
+  }));
   view.addEventListener('change', guard(async (e) => {
     const sel = e.target.closest('select[data-order]');
     if (!sel) return;
@@ -257,8 +268,8 @@
     const d = await api('/admin/customers');
     const tabs = [['usuarios', `Usuarios registrados (${d.users.length})`], ['compradores', `Compradores (${d.buyers.length})`], ['ultimas', 'Últimas compras']];
     let body = '';
-    if (cTab === 'usuarios') body = `<div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Registro</th><th class="num">Pedidos</th><th class="num">Gastado</th><th>Última compra</th></tr></thead><tbody>
-      ${d.users.map((u) => `<tr><td>${esc(u.name)} ${u.role === 'admin' ? '<span class="badge">Admin</span>' : ''}</td><td>${esc(u.email)}</td><td>${fdate(u.createdAt)}</td><td class="num">${u.orders}</td><td class="num">${money(u.spentCents)}</td><td>${fdate(u.lastOrderAt)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Aún no hay usuarios.</td></tr>'}</tbody></table></div>`;
+    if (cTab === 'usuarios') body = `<div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Registro</th><th class="num">Pedidos</th><th class="num">Gastado</th><th>Última compra</th><th></th></tr></thead><tbody>
+      ${d.users.map((u) => `<tr><td>${esc(u.name)} ${u.role === 'admin' ? '<span class="badge">Admin</span>' : ''}</td><td>${esc(u.email)}</td><td>${fdate(u.createdAt)}</td><td class="num">${u.orders}</td><td class="num">${money(u.spentCents)}</td><td>${fdate(u.lastOrderAt)}</td><td>${u.role === 'customer' ? `<button class="btn danger sm" type="button" data-customer-delete="${u.id}" data-customer-name="${esc(u.name)}">Borrar cliente</button>` : '<span class="muted">Protegida</span>'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Aún no hay usuarios.</td></tr>'}</tbody></table></div>`;
     if (cTab === 'compradores') body = `<p class="muted">Todas las personas que han hecho un pedido, tengan cuenta o no.</p><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th class="num">Pedidos</th><th class="num">Gastado</th><th>Última compra</th></tr></thead><tbody>
       ${d.buyers.map((b) => `<tr><td>${esc(b.name)} ${b.registered ? '<span class="badge ok">Con cuenta</span>' : ''}</td><td>${esc(b.email)}</td><td>${esc(b.phone || '—')}</td><td class="num">${b.orders}</td><td class="num">${money(b.spentCents)}</td><td>${fdate(b.lastOrderAt)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Aún no hay compras.</td></tr>'}</tbody></table></div>`;
     if (cTab === 'ultimas') body = `<div class="scroll"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Productos</th><th>Estado</th><th class="num">Total</th><th>Fecha</th></tr></thead><tbody>
@@ -266,6 +277,13 @@
     view.innerHTML = `<h1>Clientes</h1><div class="tabs">${tabs.map(([k, l]) => `<button data-ctab="${k}" class="${cTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>${body}`;
     view.querySelectorAll('[data-ctab]').forEach((b) => { b.onclick = () => { cTab = b.dataset.ctab; vClientes(); }; });
   }
+  view.addEventListener('click', guard(async (e) => {
+    const b = e.target.closest('[data-customer-delete]');
+    if (!b || !confirm(`¿Borrar la cuenta de ${b.dataset.customerName}? Sus pedidos anteriores se conservarán sin cuenta asociada. Esta acción no se puede deshacer.`)) return;
+    await api('/admin/customers/' + b.dataset.customerDelete, { method: 'DELETE' });
+    toast('Cliente eliminado');
+    await vClientes();
+  }));
 
   /* ───────── Promociones ───────── */
   const move = (ids, i, d) => { const a = [...ids]; [a[i], a[i + d]] = [a[i + d], a[i]]; return a; };

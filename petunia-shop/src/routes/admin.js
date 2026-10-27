@@ -67,6 +67,21 @@ router.get('/orders', (req, res) => {
   res.json({ orders, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
 });
 
+router.delete('/orders/:id', (req, res) => {
+  const id = int(req.params.id);
+  const order = get('SELECT id, status FROM orders WHERE id = ?', id);
+  if (!order) return bad(res, 'Pedido no encontrado.', 404);
+  db.transaction(() => {
+    if (['pending', 'paid'].includes(order.status)) {
+      for (const item of all('SELECT product_id, qty FROM order_items WHERE order_id = ?', id)) {
+        if (item.product_id) run('UPDATE products SET stock = stock + ? WHERE id = ?', item.qty, item.product_id);
+      }
+    }
+    run('DELETE FROM orders WHERE id = ?', id);
+  })();
+  res.json({ ok: true });
+});
+
 router.patch('/orders/:id', (req, res) => {
   const status = req.body.status;
   if (!UPDATABLE_STATUSES.includes(status)) return bad(res, 'No se puede actualizar un pedido al estado recibido.');
@@ -102,6 +117,14 @@ router.get('/customers', (req, res) => {
     FROM orders ORDER BY id DESC LIMIT 25`);
   for (const o of latest) o.items = all('SELECT name, qty FROM order_items WHERE order_id = ?', o.id);
   res.json({ users, buyers, latest });
+});
+
+router.delete('/customers/:id', (req, res) => {
+  const id = int(req.params.id);
+  const customer = get('SELECT id, role FROM users WHERE id = ?', id);
+  if (!customer || customer.role !== 'customer') return bad(res, 'Cliente no encontrado.', 404);
+  run('DELETE FROM users WHERE id = ?', id);
+  res.json({ ok: true });
 });
 
 /* ───────── Imágenes ───────── */

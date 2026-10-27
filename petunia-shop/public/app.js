@@ -913,7 +913,7 @@
   }
 
   /* ───────── Detalle del carrito: cada producto en grande ─────────
-     Imagen ampliada (con zoom y pantalla completa), la placa personalizada con su nombre, todas las fotos del
+     Imagen ampliada con zoom, la placa personalizada con su nombre, todas las fotos del
      producto, y los mismos controles de cantidad / edición / quitar que el resto de la tienda. */
   async function cartDetailPage() {
     const root = $('#cd-root');
@@ -973,7 +973,6 @@
             <div class="cd-stage" id="cd-stage">
               ${art(it, v, 'cd-zoomable')}
               ${views.length > 1 ? '<button class="cd-nav cd-prev" type="button" data-step="-1" aria-label="Vista anterior">‹</button><button class="cd-nav cd-next" type="button" data-step="1" aria-label="Vista siguiente">›</button>' : ''}
-              <button class="cd-open" type="button" id="cd-open" aria-haspopup="dialog">⤢ Pantalla completa</button>
             </div>
             <p class="cd-caption" aria-live="polite">${esc(v.caption)}</p>
             ${views.length > 1 ? `<div class="cd-views" role="group" aria-label="Vistas de ${esc(cap(it.name))}">${views.map((x, k) => `<button class="cd-view" type="button" data-view="${k}" aria-current="${k === view}" aria-label="${esc(x.label)}">${viewThumb(it, x)}<span>${esc(x.label)}</span></button>`).join('')}</div>` : ''}
@@ -995,30 +994,29 @@
           </section>
         </div>`;
       fitPlates(root);
+      fitStage();
+      const image = $('#cd-stage img', root);
+      if (image && !image.complete) image.addEventListener('load', fitStage, { once: true });
     }
 
-    /* Pantalla completa: la vista actual, muy grande, con flechas para recorrer las vistas del producto. */
-    function lightbox() {
-      const it = cart.items[sel]; if (!it) return;
-      const views = viewsOf(it);
-      let dlg = $('#cd-lightbox');
-      if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'cd-lightbox'; dlg.className = 'cd-lightbox'; dlg.setAttribute('aria-label', 'Imagen ampliada'); document.body.appendChild(dlg); }
-      const paint = () => {
-        const v = views[view];
-        dlg.innerHTML = `<button type="button" class="plate-close" data-close aria-label="Cerrar">×</button>
-          ${views.length > 1 ? '<button class="cd-nav cd-prev" type="button" data-lb="-1" aria-label="Vista anterior">‹</button><button class="cd-nav cd-next" type="button" data-lb="1" aria-label="Vista siguiente">›</button>' : ''}
-          ${art(it, v, 'cd-lb-art')}<p class="cd-caption">${esc(cap(it.name))}${isPlate(it) && v.kind === 'plate' ? ` · ${esc(it.customName)}` : ''} — ${esc(v.label)}${views.length > 1 ? ` (${view + 1}/${views.length})` : ''}</p>`;
-        fitPlates(dlg);
-      };
-      dlg.onclick = (e) => {
-        if (e.target === dlg || e.target.closest('[data-close]')) { dlg.close(); return; }
-        const b = e.target.closest('[data-lb]'); if (b) { view = (view + Number(b.dataset.lb) + views.length) % views.length; paint(); }
-      };
-      dlg.onkeydown = (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { view = (view + (e.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length; paint(); } };
-      dlg.onclose = () => { draw(); $('#cd-open')?.focus(); };
-      paint();
-      dlg.showModal();
+    function fitStage() {
+      const stage = $('#cd-stage', root);
+      if (!stage) return;
+      if (!window.matchMedia('(min-width: 981px)').matches) {
+        stage.style.removeProperty('width');
+        stage.style.removeProperty('height');
+        return;
+      }
+      const image = $('img', stage);
+      if (!image?.naturalWidth || !image.naturalHeight) return;
+      const ratio = image.naturalWidth / image.naturalHeight;
+      const maxHeight = Math.min(window.innerHeight * 0.78, 760);
+      const width = Math.min(stage.parentElement.clientWidth, maxHeight * ratio);
+      stage.style.width = `${width}px`;
+      stage.style.height = `${width / ratio}px`;
     }
+
+    window.addEventListener('resize', fitStage);
 
     /* Después de cambiar algo en la bolsa, se vuelve a mostrar el mismo producto (o el más cercano). */
     const refresh = (c, keepId) => {
@@ -1038,7 +1036,6 @@
         if (vw) { view = Number(vw.dataset.view); draw(); $(`[data-view="${view}"]`, root)?.focus(); return; }
         const st = t.closest('[data-step]');
         if (st) { const n = viewsOf(cart.items[sel]).length; view = (view + Number(st.dataset.step) + n) % n; draw(); $(`[data-step="${st.dataset.step}"]`, root)?.focus(); return; }
-        if (t.closest('#cd-open')) { lightbox(); return; }
         const row = t.closest('[data-item]');
         if (!row) return;
         const line = cart.items.find((x) => String(x.id) === row.dataset.item);
@@ -1054,13 +1051,15 @@
       } catch (ex) { toast(ex.message); }
     });
 
-    // Zoom con el cursor sobre la imagen (igual que en la ficha del producto)
     root.addEventListener('mousemove', (e) => {
-      const z = e.target.closest('.cd-stage')?.querySelector('.cd-zoomable');
-      if (!z) return;
-      const b = z.getBoundingClientRect();
-      z.style.setProperty('--zx', ((e.clientX - b.left) / b.width) * 100 + '%');
-      z.style.setProperty('--zy', ((e.clientY - b.top) / b.height) * 100 + '%');
+      const stage = e.target.closest('.cd-stage');
+      const zoomable = stage?.querySelector('.cd-zoomable');
+      if (!stage || !zoomable) return;
+      const bounds = stage.getBoundingClientRect();
+      const x = Math.min(100, Math.max(0, ((e.clientX - bounds.left) / bounds.width) * 100));
+      const y = Math.min(100, Math.max(0, ((e.clientY - bounds.top) / bounds.height) * 100));
+      zoomable.style.setProperty('--zx', `${x}%`);
+      zoomable.style.setProperty('--zy', `${y}%`);
     });
 
     draw();
