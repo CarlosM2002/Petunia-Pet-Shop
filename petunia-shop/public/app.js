@@ -512,7 +512,7 @@
     const popular = await api('/search/popular');
     $('#popular').innerHTML = popular.map((t) => `<a href="search.html?q=${encodeURIComponent(t)}" data-term="${esc(t)}">${esc(t)}</a>`).join('');
     let timer, seq = 0;
-    async function run(q) {
+    async function run(q, { scroll = false } = {}) {
       q = q.trim();
       const mine = ++seq;
       if (!q) { results.hidden = true; return; }
@@ -522,15 +522,20 @@
       count.textContent = r.total ? `${r.total} ${r.total === 1 ? 'resultado' : 'resultados'} para “${q}”` : '';
       grid.innerHTML = r.total ? r.items.map(cardHTML).join('') : `<div style="grid-column:1/-1">${emptyHTML(`No encontramos resultados para “${q}”. Prueba con otra palabra.`, 'perros.html', 'Ver todos los productos')}</div>`;
       history.replaceState(null, '', '?q=' + encodeURIComponent(q));
+      if (scroll) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => run(input.value), 250); });
-    $('#search-form').addEventListener('submit', (e) => { e.preventDefault(); run(input.value); });
+    $('#search-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearTimeout(timer);
+      run(input.value, { scroll: true });
+    });
     $('#popular').addEventListener('click', (e) => {
       const a = e.target.closest('a[data-term]'); if (!a) return;
-      e.preventDefault(); input.value = a.dataset.term; run(a.dataset.term);
+      e.preventDefault(); input.value = a.dataset.term; run(a.dataset.term, { scroll: true });
     });
     const q = new URLSearchParams(location.search).get('q');
-    if (q) { input.value = q; run(q); }
+    if (q) { input.value = q; run(q, { scroll: true }); }
   }
 
   /* ───────── Acciones compartidas: favoritos y bolsa ───────── */
